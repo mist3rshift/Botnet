@@ -17,7 +17,7 @@ Les bots seront capables d'effectuer diverses tâches malveillantes comme la col
 
 Sont exclus du périmètre de ce projet : 
 - les phases d'identification et d'infection de machines hôtes pour les bots ;
-- la phase d'escalade des privilèges: on supposera que le bot s'exécute avec les droits admin sur la machine;
+- la phase d'escalade des privilèges : on supposera que le bot s'exécute avec les droits admin sur la machine ;
 - la phase d'auto-protection durant laquelle généralement un bot tente de se dissimuler sur la machine hôte pour continuer son action ;
 - la phase de propagation durant laquelle le botnet tente généralement de s'étendre.
 
