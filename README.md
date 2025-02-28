@@ -38,6 +38,16 @@ La phase de mise à jour qui permet à un botnet de se mettre à jour est une fo
 - Mise en pratique de la gestion de versions (utilisation de git/GitLab).
 
 
+
+## :warning: Précaution lors des tests d'attaques de type Flooding :warning:
+
+> ⠀
+> Il est impératif que toutes les expérimentations impliquant des attaques de type **flooding** (ex. : ping flood, SYN flood, etc.) soient effectuées dans un environnement contrôlé et isolé. **Il est strictement interdit de tester ces attaques sur un réseau réel, que ce soit un réseau de l'école, d'un hébergeur, ou d'Internet**. Pour éviter tout impact involontaire sur des systèmes externes, vous devez obligatoirement utiliser une **infrastructure virtualisée** comme **Docker**, une **machine virtuelle locale (VirtualBox, VMware)** ou un **CyberRange** dédié. 
+>
+>L'objectif est de comprendre le fonctionnement d'un botnet dans un cadre pédagogique et sécurisé, sans causer de perturbations ou de dommages. Toute infraction à cette règle peut avoir des conséquences légales et disciplinaires. Assurez-vous également de documenter clairement votre environnement de test pour garantir la traçabilité et la reproductibilité de vos expériences.
+> ⠀
+
+
 ## Cahier des charges
 
 #### Fonctionnalités minimales requises
