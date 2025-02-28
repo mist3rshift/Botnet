@@ -17,12 +17,13 @@ Les bots seront capables d'effectuer diverses tâches malveillantes comme la col
 
 Sont exclus du périmètre de ce projet : 
 - les phases d'identification et d'infection de machines hôtes pour les bots ;
+- la phase d'escalade des privilèges: on supposera que le bot s'exécute avec les droits admin sur la machine;
 - la phase d'auto-protection durant laquelle généralement un bot tente de se dissimuler sur la machine hôte pour continuer son action ;
 - la phase de propagation durant laquelle le botnet tente généralement de s'étendre.
 
 Le périmètre du projet se limite donc aux phases suivantes :
 - la phase d'activation durant laquelle un bot se déclare au centre de commande ;
-- la phase opérationnelle durant laquelle les bots vont exécuter les ordres qui leur sont donnés par le centre de commande et rendre compte à celui-ci.
+- la phase opérationnelle durant laquelle les bots vont exécuter les ordres qui leur sont donnés par le centre de commande et en rendent compte à celui-ci.
 
 La phase de mise à jour qui permet à un botnet de se mettre à jour est une fonctionnalité optionnelle.
 
@@ -52,7 +53,7 @@ La phase de mise à jour qui permet à un botnet de se mettre à jour est une fo
 - Enregistrement et communication avec le serveur.
 - Exécution des commandes reçues :
    - récupération d’informations système ;
-   - simulation de ping massif (DDoS) vers une cible définie ;
+   - simulation de trafic massif (DDoS) vers une cible définie ;
    - simulation d'une attaque de type TCP/SYN Flooding vers une cible définie.
 
 ##### Interface utilisateur (sur le serveur) :
@@ -79,7 +80,7 @@ La phase de mise à jour qui permet à un botnet de se mettre à jour est une fo
 #### Implémentation du serveur de commande et de contrôle (C&C)
 
 - Création d’un serveur multiclient en C utilisant les sockets TCP.
-- Gestion de multiples connexions avec `select()`, `poll()` ou des threads.
+- Gestion de multiples connexions avec `select()`, `poll()` ou des threads (`fork()`).
 - Fonctionnalités de base : ajout et suppression de bots, envoi de commandes.
 
 
@@ -88,22 +89,25 @@ La phase de mise à jour qui permet à un botnet de se mettre à jour est une fo
 - Développement de bots capables de :
    - S'enregistrer au serveur.
    - Récupérer et interpréter les commandes.
-   - Exécuter des tâches comme la collecte d’informations système (exemple : IP, nom d’hôte) ou comme un "ping flood" sur une adresse spécifiée.
+   - Exécuter des tâches comme la collecte d’informations système (exemple : IP, nom d’hôte) ou comme un comme l'exécution d'un type d'attaque DoS sur une adresse spécifiée.
 
 
 #### Implémentation des tâches spéciales et fonctionnalités optionnelles
 
 - Exemple de tâches :
    - Exécution de commandes système ;
-   - Simulation d’une attaque DDoS (localisée pour éviter tout impact réel) ;
+   - Simulation d’une attaque DDoS (sur le réseau **local** uniquement pour éviter tout impact réel) ;
    - Collecte et envoi de fichiers de données au serveur.
    - Téléchargement de binaires (à exécuter) aux bots.
+- Implantation d'attaques DDoS avancées (par réflexion ou amplification).
+- Chiffrement d'un fichier sur le système de ficher du bot (ransomware);
 - Chiffrement simple des communications entre le C&C et les bots (exemple : AES ou XOR).
 - Fonctionnalités de mise à jour des bots par le C&C.
+- Communications serveurs-bots plus discrètes via le protocole DNS.
 
 #### Documentation et tests
    - Documentation complète du code et des choix d'implémentation (structures de données, algorithmes mis en œuvre, etc.).
-   - Tests unitaires et fonctionnels pour s'assurer que du fonctionnement et de la résilience du botnet.
+   - Tests unitaires et fonctionnels pour s'assurer du fonctionnement et de la résilience du botnet.
 
 
 ##  Exigences du projet et points évalués
@@ -115,6 +119,7 @@ Pour l'évaluation, les points suivants seront pris en considération :
 - Fonctionnalités disponibles sur le C&C et les bots.
 - Respect des **bonnes pratiques de programmation** (structure du code, compilation séparée, commentaires, organisation, Makefile).
 - Tests et gestion des erreurs (robustesse de l’application).
+- Qualité de la gestion de projet et du travail en équipe.
 
 
 ## Rendu Final
@@ -166,3 +171,6 @@ Puisqu'il s'agit d'un projet réalisé dans le cadre de cours avancés de progra
 
 Si vous rencontrez des difficultés pour terminer une tâche, veuillez contacter l'un de vos enseignants afin que nous puissions vous aider. Nous préférons de loin passer du temps à vous aider plutôt que de traiter des cas de fraudes.
 
+## Ressources
+
+- https://cyber.gouv.fr/sites/default/files/2015/03/NP_Guide_DDoS.pdf
