@@ -15,10 +15,10 @@ L'objectif de ce projet est de concevoir et de développer un botnet avec une ar
 
 Les bots seront capables d'effectuer diverses tâches malveillantes comme la collecte d’informations sur la machine hôte, le lancement d'une attaque groupée DDoS, le déploiement de binaires ou l'exécution de commandes système.
 
-Son exclu du périmètre de ce projet : 
+Sont exclus du périmètre de ce projet : 
 - les phases d'identification et d'infection de machines hôtes pour les bots ;
 - la phase d'auto-protection durant laquelle généralement un bot tente de se dissimuler sur la machine hôte pour continuer son action ;
-- la phase propagation durant laquelle le botnet tente généralement de s'étendre.
+- la phase de propagation durant laquelle le botnet tente généralement de s'étendre.
 
 Le périmètre du projet se limite donc aux phases suivantes :
 - la phase d'activation durant laquelle un bot se déclare au centre de commande ;
