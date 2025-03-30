@@ -17,3 +17,9 @@ add_executable(client # Define the client build
         src/client/client_errors.c
         src/logging.c
 )
+
+add_executable(test_hash_table # Define the test hash table
+    tests/test_hash_table.c
+    src/server/hash_table.c  
+    src/logging.c  
+)
