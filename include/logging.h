@@ -5,6 +5,8 @@
 #ifndef LOGGING_H
 #define LOGGING_H
 
+#include <stdio.h>
+
 enum LogCode {
     LOG_ERROR = 0, // Application errors
     LOG_WARNING = 1, // Potential error incoming
