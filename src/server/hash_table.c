@@ -11,10 +11,10 @@
 #include "../../include/server/hash_table.h"
 
 // Fonction de hachage djb2
-unsigned int hash(const char *id, size_t size) {
+unsigned int hash(const char *id, const size_t size) {
     unsigned long hash = 5381;
     int c;
-    while ((c = *id++)) {
+    while ((c = (unsigned char) *id++)) {
         hash = ((hash << 5) + hash) + c; // hash * 33 + c
     }
     return hash % size;
@@ -57,7 +57,7 @@ void resize_client_table(ClientHashTable *hashTable) {
 }
 
 // Ajouter un client à la table de hachage
-void add_client(ClientHashTable *hashTable, const char *id, int socket, bool connected) {
+void add_client(ClientHashTable *hashTable, const char *id, const int socket, const bool connected) {
     if ((double)hashTable->count / hashTable->size > LOAD_FACTOR) {
         resize_client_table(hashTable);
     }
@@ -77,8 +77,8 @@ void add_client(ClientHashTable *hashTable, const char *id, int socket, bool con
 }
 
 // Rechercher un client dans la table de hachage
-Client *find_client(ClientHashTable *hashTable, const char *id) {
-    unsigned int index = hash(id, hashTable->size);
+Client *find_client(const ClientHashTable *hashTable, const char *id) {
+    const unsigned int index = hash(id, hashTable->size);
     Client *current = hashTable->table[index];
     while (current) {
         if (strcmp(current->id, id) == 0) {
@@ -91,7 +91,7 @@ Client *find_client(ClientHashTable *hashTable, const char *id) {
 
 // Supprimer un client de la table de hachage
 void remove_client(ClientHashTable *hashTable, const char *id) {
-    unsigned int index = hash(id, hashTable->size);
+    const unsigned int index = hash(id, hashTable->size);
     Client *current = hashTable->table[index];
     Client *prev = NULL;
     
@@ -127,7 +127,7 @@ void free_client_table(ClientHashTable *hashTable) {
     hashTable->count = 0;
 }
 
-void print_client_table(ClientHashTable *hashTable) {
+void print_client_table(const ClientHashTable *hashTable) {
     printf("Hash table size: %zu\n", hashTable->size);
     printf("Total clients: %zu\n", hashTable->count);
     

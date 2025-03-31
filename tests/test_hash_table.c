@@ -85,7 +85,7 @@ void test_free_client_table() {
     // Ne pas accéder à la table, car la mémoire a été libérée.
     // Les pointeurs sont invalides après free_client_table, donc il ne faut pas les utiliser.
 
-    // Simplement vérifier que la table a été libérée correctement (compte des clients)
+    // Simplement vérifier que la table a été libérée correctement (compte des clients).
     printf("Test free: %s\n", (table.count == 0 && table.table == NULL) ? "SUCCESS" : "FAIL");
 }
 

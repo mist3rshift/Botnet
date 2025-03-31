@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.25)
 project(botnet)
 
 set(CMAKE_C_STANDARD 11)
@@ -10,16 +10,24 @@ add_executable(server # Define the server build
         src/server/main.c
         src/server/server_errors.c
         src/logging.c
+        src/commands.c
 )
 
 add_executable(client # Define the client build
         src/client/main.c
         src/client/client_errors.c
         src/logging.c
+        src/commands.c
 )
 
 add_executable(test_hash_table # Define the test hash table
     tests/test_hash_table.c
     src/server/hash_table.c  
     src/logging.c  
+)
+
+add_executable(test_commands # Define the tests for commands
+        tests/test_commands.c
+        src/commands.c
+        src/logging.c
 )

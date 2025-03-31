@@ -30,15 +30,15 @@ void init_client_table(ClientHashTable *hashTable);
 
 void resize_client_table(ClientHashTable *hashTable);
 
-void add_client(ClientHashTable *hashTable, const char *id, int socket, bool connected);
+void add_client(ClientHashTable *hashTable, const char *id, int socket, const bool connected);
 
-Client *find_client(ClientHashTable *hashTable, const char *id);
+Client *find_client(const ClientHashTable *hashTable, const char *id);
 
 void remove_client(ClientHashTable *hashTable, const char *id);
 
 void free_client_table(ClientHashTable *hashTable);
 
-void print_client_table(ClientHashTable *hashTable);
+void print_client_table(const ClientHashTable *hashTable);
 
 
 #endif

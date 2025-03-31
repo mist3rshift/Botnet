@@ -1,17 +1,21 @@
-build-job:
+stages:
+  - build
+  - test
+
+build:
   stage: build
+  image: gcc:latest
   script:
-    - echo "Hello, $GITLAB_USER_LOGIN!"
+    - apt-get update && apt-get install -y cmake clang
+    - cmake -S . -B build
+    - cmake --build build
+  artifacts:
+    paths:
+      - build/
 
-test-client:
+test:
   stage: test
+  image: gcc:latest
   script:
-    - echo "This job tests something"
-
-test-server:
-  stage: test
-  script:
-    - echo "This job tests something, but takes more time than test-job1."
-    - echo "After the echo commands complete, it runs the sleep command for 20 seconds"
-    - echo "which simulates a test that runs 20 seconds longer than test-job1"
-    - sleep 20
+    - ./build/test_commands
+    - ./build/test_hash_table
