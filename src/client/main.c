@@ -23,7 +23,7 @@ int main()
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
-        perror("Error while creating client socket");
+        client_setup_failed_exception("Error while creating client socket");
         exit(EXIT_FAILURE);
     }
 
@@ -36,7 +36,7 @@ int main()
     // Connection to the server
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        perror("cliecho : erreur connect");
+        client_setup_failed_exception("erreur while client trying to connect to the server");
         exit(1);
     }
 

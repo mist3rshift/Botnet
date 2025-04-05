@@ -19,5 +19,6 @@ test:
   script:
     - ./build/test_commands
     - ./build/test_hash_table
-    - ./build/server
+    - ./build/server &
+    - sleep 1
     - ./build/client

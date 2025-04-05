@@ -12,4 +12,4 @@
 int server_setup_failed_exception(char *error_message);
 int server_socket_bind_exception(char *error_message);
 
-#endif //SERVER_ERRORS_H
+#endif // SERVER_ERRORS_H

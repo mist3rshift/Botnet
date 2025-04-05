@@ -35,7 +35,7 @@ int main()
     // creation of the AF_INET (IPV4) server socket
     if ((serverSocket = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
-        perror("erreur socket");
+        server_setup_failed_exception("Error while creating server socket");
         exit(1);
     }
 
@@ -48,14 +48,14 @@ int main()
     // binding between the created socket and the sock_addr_in structure
     if (bind(serverSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        perror("servecho: erreur bind\n");
+        server_socket_bind_exception("Error while binding server socket\n");
         exit(1);
     }
 
     // manage number of pending requests for server socket (3 for now)
     if (listen(serverSocket, 3) < 0)
     {
-        perror("servecho: erreur listen\n");
+        server_setup_failed_exception("Error before server socket listening\n");
         exit(1);
     }
 
@@ -65,7 +65,7 @@ int main()
     dialogSocket = accept(serverSocket, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
     if (dialogSocket < 0)
     {
-        perror("servecho : erreur accept\n");
+        server_setup_failed_exception("Error while accepting a new connection from a client\n");
         exit(1);
     }
 
