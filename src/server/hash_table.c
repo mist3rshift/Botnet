@@ -57,7 +57,7 @@ void resize_client_table(ClientHashTable *hashTable) {
 }
 
 // Ajouter un client à la table de hachage
-void add_client(ClientHashTable *hashTable, const char *id, const int socket, const bool connected) {
+void add_client(ClientHashTable *hashTable, const char *id, const int socket,ClientState state) {
     if ((double)hashTable->count / hashTable->size > LOAD_FACTOR) {
         resize_client_table(hashTable);
     }
@@ -70,7 +70,7 @@ void add_client(ClientHashTable *hashTable, const char *id, const int socket, co
     }
     strcpy(newClient->id, id);
     newClient->socket = socket;
-    newClient->connected = connected;  // Initialisation de l'état de connexion
+    newClient->state = state;  // Initialisation de l'état de connexion
     newClient->next = hashTable->table[index];
     hashTable->table[index] = newClient;
     hashTable->count++;
@@ -136,7 +136,7 @@ void print_client_table(const ClientHashTable *hashTable) {
         if (current != NULL) {
             printf("Index %zu: ", i);
             while (current) {
-                printf("[ID: %s, Socket: %d,State : %d] -> ", current->id, current->socket,current->connected);
+                printf("[ID: %s, Socket: %d,State : %d] -> ", current->id, current->socket,current->state);
                 current = current->next;
             }
             printf("NULL\n");

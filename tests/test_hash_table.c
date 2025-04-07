@@ -19,9 +19,9 @@ void test_add_find_client() {
     ClientHashTable table;
     init_client_table(&table);
 
-    add_client(&table, "client1", 1,true);
-    add_client(&table, "client2", 2,false);
-    add_client(&table, "client3", 3,true);
+    add_client(&table, "client1", 1,LISTENING);
+    add_client(&table, "client2", 2,ACTIVE);
+    add_client(&table, "client3", 3,UNREACHABLE);
     print_client_table(&table);
     Client *c1 = find_client(&table, "client1");
     Client *c2 = find_client(&table, "client2");
@@ -36,7 +36,7 @@ void test_remove_client() {
     ClientHashTable table;
     init_client_table(&table);
 
-    add_client(&table, "client1", 1,true);
+    add_client(&table, "client1", 1,LISTENING);
     remove_client(&table, "client1");
 
     Client *c1 = find_client(&table, "client1");
@@ -54,7 +54,7 @@ void test_resize_table() {
     for (int i = 0; i < 200; i++) {
         char id[10];
         sprintf(id, "client%d", i);
-        add_client(&table, id, i,true);
+        add_client(&table, id, i,LISTENING);
     }
     Client *c150 = find_client(&table, "client150");
 
@@ -68,8 +68,8 @@ void test_free_client_table() {
     init_client_table(&table);
 
     // Ajouter des clients
-    add_client(&table, "client1", 1,true);
-    add_client(&table, "client2", 2,true);
+    add_client(&table, "client1", 1,LISTENING);
+    add_client(&table, "client2", 2,ACTIVE);
 
     // Vérification avant libération
     Client *c1_before = find_client(&table, "client1");
