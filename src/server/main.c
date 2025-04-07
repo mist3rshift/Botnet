@@ -7,6 +7,7 @@
 #include "../../include/server/server_errors.h"
 #include "../../include/logging.h"
 #include "../../include/server/server_constants.h"
+#include "../../include/server/hash_table.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+int initialize_server_socket(int port);
 int main()
 {
     /*
@@ -25,39 +27,11 @@ int main()
     server_setup_failed_exception("Failed to setup server"); // Showcase custom error
     */
 
-    int sockfd, newsockfd;
-    struct sockaddr_in serv_addr, cli_addr;
+    struct sockaddr_in cli_addr;
     int clilen = sizeof(cli_addr);
     int serverSocket, dialogSocket;
-    char buffer[1024];
-    int n;
 
-    // creation of the AF_INET (IPV4) server socket
-    if ((serverSocket = socket(PF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        server_setup_failed_exception("Error while creating server socket");
-        exit(1);
-    }
-
-    // filling of our "sockaddr_in" structure
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY); // listen on any ports
-    serv_addr.sin_port = htons((ushort)atoi(DEFAULT_SERVER_PORT));
-
-    // binding between the created socket and the sock_addr_in structure
-    if (bind(serverSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        server_socket_bind_exception("Error while binding server socket\n");
-        exit(1);
-    }
-
-    // manage number of pending requests for server socket (3 for now)
-    if (listen(serverSocket, 3) < 0)
-    {
-        server_setup_failed_exception("Error before server socket listening\n");
-        exit(1);
-    }
+    serverSocket = initialize_server_socket(atoi(DEFAULT_SERVER_PORT));
 
     printf("Listening on port %s...\n", DEFAULT_SERVER_PORT);
 
@@ -72,4 +46,40 @@ int main()
     printf("New connexion from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
     return 0;
+}
+
+// Function to initialize the server socket
+int initialize_server_socket(int port)
+{
+    int serverSocket;
+    struct sockaddr_in serv_addr;
+
+    // Create the server socket
+    if ((serverSocket = socket(PF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        server_setup_failed_exception("Error while creating server socket");
+        exit(1);
+    }
+
+    // Configure the server address structure
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on any interface
+    serv_addr.sin_port = htons(port);
+
+    // Bind the socket to the address
+    if (bind(serverSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        server_socket_bind_exception("Error while binding server socket\n");
+        exit(1);
+    }
+
+    // Start listening for incoming connections
+    if (listen(serverSocket,MAX_CLIENTS ) < 0)
+    {
+        server_setup_failed_exception("Error before server socket listening\n");
+        exit(1);
+    }
+
+    return serverSocket;
 }
