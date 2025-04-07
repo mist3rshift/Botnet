@@ -15,8 +15,11 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
 int initialize_server_socket(int port);
+void handle_client_connections(int serverSocket);
+char *generate_client_id_from_socket(int client_socket);
 int main()
 {
     /*
@@ -31,20 +34,16 @@ int main()
     int clilen = sizeof(cli_addr);
     int serverSocket, dialogSocket;
 
+    
+
     serverSocket = initialize_server_socket(atoi(DEFAULT_SERVER_PORT));
 
     printf("Listening on port %s...\n", DEFAULT_SERVER_PORT);
 
-    // new socket creation when a new client connection occurs
-    dialogSocket = accept(serverSocket, (struct sockaddr *)&cli_addr, (socklen_t *)&clilen);
-    if (dialogSocket < 0)
-    {
-        server_setup_failed_exception("Error while accepting a new connection from a client\n");
-        exit(1);
-    }
+    handle_client_connections(serverSocket);
 
-    printf("New connexion from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-
+    close(serverSocket);
+    
     return 0;
 }
 
@@ -57,7 +56,7 @@ int initialize_server_socket(int port)
     // Create the server socket
     if ((serverSocket = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
-        server_setup_failed_exception("Error while creating server socket");
+        server_setup_failed_exception("initialize_server_socket : Error while creating server socket");
         exit(1);
     }
 
@@ -70,16 +69,158 @@ int initialize_server_socket(int port)
     // Bind the socket to the address
     if (bind(serverSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        server_socket_bind_exception("Error while binding server socket\n");
+        server_socket_bind_exception("initialize_server_socket : Error while binding server socket\n");
         exit(1);
     }
 
     // Start listening for incoming connections
     if (listen(serverSocket,MAX_CLIENTS ) < 0)
     {
-        server_setup_failed_exception("Error before server socket listening\n");
+        server_setup_failed_exception("initialize_server_socket : Error before server socket listening\n");
         exit(1);
     }
 
     return serverSocket;
 }
+
+// Function to handle multiple client connections using select
+void handle_client_connections(int serverSocket)
+{
+    fd_set master_set, read_set;
+    int max_fd = serverSocket;
+    int client_sockets[MAX_CLIENTS] = {0};
+    struct sockaddr_in cli_addr;
+    socklen_t clilen = sizeof(cli_addr);
+
+    // Initialize the hash table
+    ClientHashTable hash_table;
+    init_client_table(&hash_table);
+
+    FD_ZERO(&master_set);
+    FD_SET(serverSocket, &master_set);
+
+    while (1)
+    {
+        read_set = master_set;
+
+        // Use select to monitor sockets
+        if (select(max_fd + 1, &read_set, NULL, NULL, NULL) < 0)
+        {
+            output_log("%s\n", LOG_ERROR, LOG_TO_ALL, " handle_client_connections : Error in select");
+        }
+
+        // Check for new connections
+        // If the server socket is ready for reading, it indicates a new client connection. 
+        if (FD_ISSET(serverSocket, &read_set))
+        {
+            // Accept the new connection
+            int new_socket = accept(serverSocket, (struct sockaddr *)&cli_addr, &clilen);
+            if (new_socket < 0)
+            {
+                output_log("%s\n", LOG_ERROR, LOG_TO_ALL, " handle_client_connections : Error accepting new connection");
+                continue;
+            }
+
+            printf("New connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+
+            // Add the new socket to the client list
+            for (int i = 0; i < MAX_CLIENTS; i++)
+            {
+                if (client_sockets[i] == 0)
+                {
+                    client_sockets[i] = new_socket;
+                    FD_SET(new_socket, &master_set); // Add the new socket to the master set ( list for all sockets)
+                    if (new_socket > max_fd)
+                        max_fd = new_socket;
+
+                    // Add the client to the hash table
+                    char *client_id = generate_client_id_from_socket(new_socket);
+                    if (client_id == NULL)
+                    {
+                        output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error generating client ID");
+                        continue;
+                    }
+                    snprintf(client_id, sizeof(client_id), "%s:%d", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+                    add_client(&hash_table, client_id, new_socket, LISTENING);
+                    break;
+                }
+            }
+        }
+
+        // Check for activity on client sockets
+        for (int i = 0; i < MAX_CLIENTS; i++)
+        {
+            int client_socket = client_sockets[i];
+            if (client_socket > 0 && FD_ISSET(client_socket, &read_set))
+            {
+                // Handle incoming data from the client
+                // Here, we can use recv() to read data from the client socket
+                // and process it accordingly.
+                char buffer[1024];
+                int bytes_read = recv(client_socket, buffer, sizeof(buffer), 0);
+                char *client_id = generate_client_id_from_socket(client_socket);
+                if (client_id == NULL)
+                {
+                    output_log("%s\n", LOG_ERROR, LOG_TO_ALL, " handle_client_connections : Error generating client ID");
+                    continue;
+                }
+                if (bytes_read <= 0)
+                {
+                    // Client disconnected
+                    printf("Client disconnected: socket %d\n", client_socket);
+                    close(client_socket);
+                    FD_CLR(client_socket, &master_set);
+                    client_sockets[i] = 0;
+
+                    // Update the client's state in the hash table
+                    Client *client = find_client(&hash_table, client_id);
+                    if (client)
+                    {
+                        client->state =UNREACHABLE;
+                        remove_client(&hash_table, client->id);
+                    }
+                }
+                else
+                {
+                    // Handle client message
+                    buffer[bytes_read] = '\0';
+                    printf("Received from client %d: %s\n", client_socket, buffer);
+
+                    // Update the client's state to ACTIVE
+                    Client *client = find_client(&hash_table, client_id);
+                    if (client)
+                    {
+                        client->state = ACTIVE;
+                    }
+
+                    // Echo the message back to the client
+                    send(client_socket, buffer, bytes_read, 0);
+                }
+            }
+        }
+    }
+
+    // Cleanup the hash table
+    print_client_table(&hash_table);
+    free_client_table(&hash_table);
+
+}
+
+char *generate_client_id_from_socket(int client_socket){
+    struct sockaddr_in addr;
+    socklen_t addr_len = sizeof(addr);
+    char *client_id = malloc(22* sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
+
+    if (getpeername(client_socket, (struct sockaddr*)&addr, &addr_len) == -1) {
+        output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "generate_client_id_from_socket : Error getting peer name");
+        free(client_id);
+        return NULL;
+    }
+
+    char ip[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);
+    int port = ntohs(addr.sin_port);
+    snprintf(client_id, 22, "%s:%d", ip, port);
+    return client_id;
+}
+

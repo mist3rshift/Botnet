@@ -11,6 +11,7 @@ add_executable(server # Define the server build
         src/server/server_errors.c
         src/logging.c
         src/commands.c
+        src/server/hash_table.c
 )
 
 add_executable(client # Define the client build
