@@ -8,6 +8,8 @@
 #include "../../include/logging.h"
 #include "../../include/server/server_constants.h"
 #include "../../include/server/hash_table.h"
+#include "../../include/send_message.h"
+#include "../../include/launch_arguments.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -20,7 +22,7 @@
 int initialize_server_socket(int port);
 void handle_client_connections(int serverSocket);
 char *generate_client_id_from_socket(int client_socket);
-int main()
+int main(int argc, char *argv[])
 {
     /*
     output_log("%s\n", LOG_DEBUG, LOG_TO_ALL, "Showcase Debug log");
@@ -30,15 +32,15 @@ int main()
     server_setup_failed_exception("Failed to setup server"); // Showcase custom error
     */
 
+    parse_arguments(argc, argv);
+
     struct sockaddr_in cli_addr;
     int clilen = sizeof(cli_addr);
     int serverSocket, dialogSocket;
 
-    
-
     serverSocket = initialize_server_socket(atoi(DEFAULT_SERVER_PORT));
 
-    printf("Listening on port %s...\n", DEFAULT_SERVER_PORT);
+    output_log("Listening on port %s...\n", LOG_INFO, LOG_TO_ALL, DEFAULT_SERVER_PORT);
 
     handle_client_connections(serverSocket);
 
@@ -121,7 +123,7 @@ void handle_client_connections(int serverSocket)
                 continue;
             }
 
-            printf("New connection from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+            output_log("New connection from %s:%d\n", LOG_INFO, LOG_TO_ALL, inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
 
             // Add the new socket to the client list
             for (int i = 0; i < MAX_CLIENTS; i++)
@@ -161,13 +163,13 @@ void handle_client_connections(int serverSocket)
                 char *client_id = generate_client_id_from_socket(client_socket);
                 if (client_id == NULL)
                 {
-                    output_log("%s\n", LOG_ERROR, LOG_TO_ALL, " handle_client_connections : Error generating client ID");
+                    output_log("handle_client_connections : Error generating client ID\n", LOG_ERROR, LOG_TO_ALL);
                     continue;
                 }
                 if (bytes_read <= 0)
                 {
                     // Client disconnected
-                    printf("Client disconnected: socket %d\n", client_socket);
+                    output_log("Client disconnected: socket %d\n", LOG_DEBUG, LOG_TO_CONSOLE, client_socket);
                     close(client_socket);
                     FD_CLR(client_socket, &master_set);
                     client_sockets[i] = 0;
@@ -176,7 +178,7 @@ void handle_client_connections(int serverSocket)
                     Client *client = find_client(&hash_table, client_id);
                     if (client)
                     {
-                        client->state =UNREACHABLE;
+                        client->state = UNREACHABLE;
                         remove_client(&hash_table, client->id);
                     }
                 }
@@ -184,7 +186,7 @@ void handle_client_connections(int serverSocket)
                 {
                     // Handle client message
                     buffer[bytes_read] = '\0';
-                    printf("Received from client %d: %s\n", client_socket, buffer);
+                    output_log("Received from client %d: %s\n", LOG_INFO, LOG_TO_ALL, client_socket, buffer);
 
                     // Update the client's state to ACTIVE
                     Client *client = find_client(&hash_table, client_id);
@@ -193,8 +195,14 @@ void handle_client_connections(int serverSocket)
                         client->state = ACTIVE;
                     }
 
-                    // Echo the message back to the client
-                    send(client_socket, buffer, bytes_read, 0);
+                    if (client_socket <= 0)
+                    {
+                        // Ensure the socket is valid before sending a message back
+                        output_log("Invalid client socket: %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
+                        continue;
+                    }
+
+                    send_message(client_socket, buffer);
                 }
             }
         }
@@ -212,7 +220,7 @@ char *generate_client_id_from_socket(int client_socket){
     char *client_id = malloc(22* sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
 
     if (getpeername(client_socket, (struct sockaddr*)&addr, &addr_len) == -1) {
-        output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "generate_client_id_from_socket : Error getting peer name");
+        output_log("generate_client_id_from_socket : Error getting peer name\n", LOG_ERROR, LOG_TO_ALL);
         free(client_id);
         return NULL;
     }

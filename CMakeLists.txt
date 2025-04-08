@@ -12,13 +12,17 @@ add_executable(server # Define the server build
         src/logging.c
         src/commands.c
         src/server/hash_table.c
+        src/send_message.c
+        src/launch_arguments.c
 )
 
 add_executable(client # Define the client build
         src/client/main.c
         src/client/client_errors.c
+        src/send_message.c
         src/logging.c
         src/commands.c
+        src/launch_arguments.c
 )
 
 add_executable(test_hash_table # Define the test hash table

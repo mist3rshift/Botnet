@@ -16,6 +16,9 @@
 
 #include "../include/logging.h"
 
+bool suppress_errors_flag = false;
+
+enum LogLevel current_log_level = LOG_LEVEL_INFO; // Default log level
 
 void get_timestamp(char *buffer, size_t bufsize) {
     struct timeval tv;
@@ -38,24 +41,55 @@ void get_timestamp(char *buffer, size_t bufsize) {
 }
 
 void output_log(const char *fmt, const enum LogCode code, const enum LogType type, ...) {
-    // Print logs to file, console, or both with error type and color coding.
+    // Map LogCode to LogLevel
+    enum LogLevel log_level;
+    switch (code) {
+        case LOG_ERROR:
+            log_level = LOG_LEVEL_ERROR;
+            break;
+        case LOG_WARNING:
+            log_level = LOG_LEVEL_WARNING;
+            break;
+        case LOG_INFO:
+            log_level = LOG_LEVEL_INFO;
+            break;
+        case LOG_DEBUG:
+            log_level = LOG_LEVEL_DEBUG;
+            break;
+        default:
+            log_level = LOG_LEVEL_INFO;
+            break;
+    }
+
+    // Skip logs below the current log level
+    if ((log_level > current_log_level) || (log_level == LOG_LEVEL_ERROR && suppress_errors_flag)) {
+        return;
+    }
+
     FILE *file = NULL;
-    if (type == LOG_TO_ALL || type == LOG_TO_FILE) { // Only open when required, and also prevent closing unopened file!
-        file = fopen("main.log", "a+"); // Create (file not exists) / append to log  (file exists)
-        if (file == NULL) { // Error somewhere
+    if (type == LOG_TO_ALL || type == LOG_TO_FILE) {
+        file = fopen("main.log", "a+");
+        if (file == NULL) {
             fprintf(stderr, "\033[1;31m[ERR]\033[0m - Could not open log file.\n");
             return;
         }
     }
 
-    va_list args; // Init the argument list
-    va_start(args, type); // Setup arg list following function
+    va_list args;
+    va_start(args, type);
+
+    // Check for NULL format string
+    if (fmt == NULL) {
+        fprintf(stderr, "\033[1;31m[ERR]\033[0m - Format string is NULL.\n");
+        va_end(args);
+        if (file) fclose(file);
+        return;
+    }
 
     // Create the log portion
-    char timestamp[30]; // Buffer for timestamp
+    char timestamp[30];
     get_timestamp(timestamp, sizeof(timestamp));
 
-    // Determine error "name" to use in log&console, and color to use
     const char *error_type;
     const char *color_code;
     switch (code) {
@@ -83,22 +117,23 @@ void output_log(const char *fmt, const enum LogCode code, const enum LogType typ
 
     // Log to file
     if (type == LOG_TO_ALL || type == LOG_TO_FILE) {
-        fprintf(file, "[%s] [%s] - ", timestamp, error_type); // Timestamp and error type
-        vfprintf(file, fmt, args); // Log message
-        fclose(file); // Close the file
+        fprintf(file, "[%s] [%s] - ", timestamp, error_type);
+        vfprintf(file, fmt, args);
+        fclose(file);
     }
 
     // Log to console
     if (type == LOG_TO_ALL || type == LOG_TO_CONSOLE) {
+        va_end(args); // End the current va_list
+        va_start(args, type); // Reinitialize va_list
         if (code == LOG_ERROR) {
-          // Specify Standard Error output when the log is an error
-            fprintf(stderr, "%s[%s] [%s]\033[0m - ", color_code, timestamp, error_type); // to console (only default formatting), with color at start
-            vfprintf(stderr, fmt, args); // To console, rest of args (content of the string)
+            fprintf(stderr, "%s[%s] [%s]\033[0m - ", color_code, timestamp, error_type);
+            vfprintf(stderr, fmt, args);
         } else {
-            fprintf(stdout, "%s[%s] [%s]\033[0m - ", color_code, timestamp, error_type); // to console (only default formatting), with color at start
-            vfprintf(stdout, fmt, args); // To console, rest of args (content of the string)
+            fprintf(stdout, "%s[%s] [%s]\033[0m - ", color_code, timestamp, error_type);
+            vfprintf(stdout, fmt, args);
         }
     }
 
-    va_end(args); // Remove args call
+    va_end(args);
 }
