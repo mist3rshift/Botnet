@@ -10,6 +10,8 @@
 #include "../../include/logging.h"
 #include "../../include/server/hash_table.h"
 
+ClientHashTable hash_table;
+
 // Fonction de hachage djb2
 unsigned int hash(const char *id, const size_t size) {
     unsigned long hash = 5381;
@@ -68,6 +70,7 @@ void add_client(ClientHashTable *hashTable, const char *id, const int socket,Cli
         output_log("Erreur d'allocation mémoire dans add_client()\n", LOG_ERROR, LOG_TO_ALL);
         return;
     }
+    printf("id : %s\n", id);
     strcpy(newClient->id, id);
     newClient->socket = socket;
     newClient->state = state;  // Initialisation de l'état de connexion
@@ -78,13 +81,13 @@ void add_client(ClientHashTable *hashTable, const char *id, const int socket,Cli
 
 // Rechercher un client dans la table de hachage
 Client *find_client(const ClientHashTable *hashTable, const char *id) {
-    const unsigned int index = hash(id, hashTable->size);
-    Client *current = hashTable->table[index];
-    while (current) {
-        if (strcmp(current->id, id) == 0) {
-            return current;
+    unsigned int index = hash(id, hashTable->size);
+    Client *client = hashTable->table[index];
+    while (client != NULL) {
+        if (strcmp(client->id, id) == 0) {
+            return client;
         }
-        current = current->next;
+        client = client->next;
     }
     return NULL;
 }

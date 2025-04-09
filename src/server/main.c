@@ -2,15 +2,17 @@
 // Created by angaros on 3/10/2025.
 //
 
-#include <stddef.h>
-
+#include "../../lib/mongoose.h"
 #include "../../include/server/server_errors.h"
 #include "../../include/logging.h"
 #include "../../include/server/server_constants.h"
 #include "../../include/server/hash_table.h"
 #include "../../include/send_message.h"
 #include "../../include/launch_arguments.h"
+#include "../../include/web_server.h"
 
+#include <stddef.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -22,6 +24,7 @@
 int initialize_server_socket(int port);
 void handle_client_connections(int serverSocket);
 char *generate_client_id_from_socket(int client_socket);
+
 int main(int argc, char *argv[])
 {
     /*
@@ -42,9 +45,19 @@ int main(int argc, char *argv[])
 
     output_log("Listening on port %s...\n", LOG_INFO, LOG_TO_ALL, DEFAULT_SERVER_PORT);
 
-    handle_client_connections(serverSocket);
+    pthread_t web_thread;
+    if (pthread_create(&web_thread, NULL, start_web_interface, NULL) != 0) {
+        // Start web serv in another thread
+        fprintf(stderr, "Failed to create web interface thread\n");
+        return 1;
+    }
 
-    close(serverSocket);
+    handle_client_connections(serverSocket); // Launch main server sock
+
+    // If above ends (somehow?) then join and close web server nicely
+    pthread_join(web_thread, NULL);
+
+    close(serverSocket); // Close the socket cleanly too
     
     return 0;
 }
@@ -94,8 +107,7 @@ void handle_client_connections(int serverSocket)
     struct sockaddr_in cli_addr;
     socklen_t clilen = sizeof(cli_addr);
 
-    // Initialize the hash table
-    ClientHashTable hash_table;
+    // &hash_table defined globally within hash_table.c
     init_client_table(&hash_table);
 
     FD_ZERO(&master_set);
@@ -142,8 +154,9 @@ void handle_client_connections(int serverSocket)
                         output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error generating client ID");
                         continue;
                     }
-                    snprintf(client_id, sizeof(client_id), "%s:%d", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+                    //snprintf(client_id, strlen(client_id), "%s:%d", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
                     add_client(&hash_table, client_id, new_socket, LISTENING);
+                    print_client_table(&hash_table);
                     break;
                 }
             }

@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
     // filling the server socket structure to which the client will be connected
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons((ushort)atoi(DEFAULT_SERVER_PORT));
+    serv_addr.sin_port = htons((uint16_t) atoi(DEFAULT_SERVER_PORT));
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     // Connection to the server
@@ -48,9 +48,12 @@ int main(int argc, char *argv[])
 
     send_message(sockfd, "Hello!");
 
-    //char buffer[1024];
-    //int bytes_read = recv(sockfd, buffer, sizeof(buffer), 0);
-    //output_log("Received from server %d: %s\n", LOG_INFO, LOG_TO_ALL, sockfd, buffer);
+     for (;;)
+     {
+          char buffer[1024];
+          int bytes_read = recv(sockfd, buffer, sizeof(buffer), 0);
+          output_log("Received from server %d: %s\n", LOG_INFO, LOG_TO_ALL, sockfd, buffer);
+     }
 
     return 0;
 }

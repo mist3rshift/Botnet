@@ -29,6 +29,8 @@ typedef struct {
     size_t count;
 } ClientHashTable;
 
+extern ClientHashTable hash_table; // Declare global (ro)
+
 //Fonctions declarations
 unsigned int hash(const char *id, size_t size);
 

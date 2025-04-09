@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Botnet Management</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="navbar"></div> <!-- Dynamically filled by JS script -->
+    <h1>Manage Bots</h1>
+    <table id="bots-table">
+        <thead>
+            <tr>
+                <th>Bot Socket</th>
+                <th>Bot ID</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Bots will be dynamically loaded here -->
+        </tbody>
+    </table>
+    <script src="/static/js/fetch_bots.js"></script>
+    <script src="/static/js/load-navbar.js"></script>
+</body>
+</html>
