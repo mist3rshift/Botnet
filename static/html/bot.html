@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client View</title>
+    <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="stylesheet" href="/static/css/bot.css">
+</head>
+<body>
+    <div id="navbar"></div> <!-- Dynamically filled by JS script -->
+    <h1>Client View</h1>
+    <div id="bot-view-controls">
+        <div>
+            <label for="client-id">Bot ID:</label>
+            <input type="text" id="client-id" placeholder="Enter Bot ID (IP:port)">
+            <button id="load-client">Load Bot</button>
+        </div>
+        <div id="timer-control">
+            <p>Next update in: <span id="timer">30</span> seconds</p>
+            <button id="force-refresh">Refresh Now</button>
+        </div>
+    </div>
+    <div id="file-content" class="log-container"></div>
+    <button id="load-more">Load More</button>
+    <script src="/static/js/bot.js"></script>
+    <script src="/static/js/load-navbar.js"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@ async function fetchBots() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${bot.socket}</td>
-            <td>${bot.id}</td>
+            <td><a href="/static/html/bot.html?id=${bot.id}">${bot.id}</a></td>
             <td>${bot.status}</td>
         `;
         tbody.appendChild(row);

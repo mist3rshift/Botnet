@@ -44,20 +44,3 @@ p {
     text-align: center;
     color: whitesmoke;
 }
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
-}
-
-th, td {
-    padding: 8px;
-    text-align: left;
-    color: whitesmoke;
-}
-
-th {
-    background-color: #5773FF;
-    color: whitesmoke;
-} 

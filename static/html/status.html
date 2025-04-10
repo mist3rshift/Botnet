@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Status</title>
+    <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="stylesheet" href="/static/css/status.css">
+</head>
+<body>
+    <div id="navbar"></div> <!-- Dynamically filled by JS script -->
+    <h1>Server Status</h1>
+    <div id="status">
+        <p>Loading...</p>
+    </div>
+    <div id="progress-container">
+        <p><strong>Client Connectivity:</strong></p>
+        <div id="progress-bar">
+            <div id="progress-fill"></div>
+        </div>
+        <p id="progress-text"></p>
+    </div>
+    
+    <script>
+        async function fetchStatus() {
+            const response = await fetch('/api/status');
+            const status = await response.json();
+
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `
+                <p><strong>Botnet Server (${status.botnet_server_ip}:${status.botnet_server_port})</strong></p>
+                <div class="item-status">${status.botnet_server_active ? "Online" : "Offline"}</div>
+                <p><strong>Web Server (${status.web_server_ip}:${status.web_server_port})</strong></p>
+                <div class="item-status">${status.web_server_active ? "Online": "Offline"}</div>
+            `;
+
+            // Calculate the percentage of connected clients
+            const totalClients = status.connected_clients + status.unreachable_clients;
+            const connectedPercentage = totalClients > 0
+                ? (status.connected_clients / totalClients) * 100
+                : 0;
+
+            // Update the progress bar
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            progressFill.style.width = `${connectedPercentage}%`;
+            progressText.textContent = `${status.connected_clients} of ${totalClients} clients connected (${connectedPercentage.toFixed(1)}%)`;
+        }
+
+        // Call the function to fetch the status and update the progress bar
+        fetchStatus();
+    </script>
+    <script src="/static/js/load-navbar.js"></script>
+</body>
+</html>

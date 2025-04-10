@@ -14,6 +14,7 @@ add_executable(server # Define the server build
         src/server/hash_table.c
         src/send_message.c
         src/launch_arguments.c
+        src/receive_message.c
         src/web_server.c
         lib/mongoose.c
 )
