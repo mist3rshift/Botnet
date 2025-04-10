@@ -42,6 +42,8 @@ void add_client(ClientHashTable *hashTable, const char *id, int socket, ClientSt
 
 Client *find_client(const ClientHashTable *hashTable, const char *id);
 
+Client *find_client_by_socket(const ClientHashTable *hashTable, const int socket);
+
 void remove_client(ClientHashTable *hashTable, const char *id);
 
 void free_client_table(ClientHashTable *hashTable);

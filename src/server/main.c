@@ -154,7 +154,6 @@ void handle_client_connections(int serverSocket)
                         output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error generating client ID");
                         continue;
                     }
-                    //snprintf(client_id, strlen(client_id), "%s:%d", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
                     add_client(&hash_table, client_id, new_socket, LISTENING);
                     print_client_table(&hash_table);
                     break;
@@ -192,7 +191,7 @@ void handle_client_connections(int serverSocket)
                     if (client)
                     {
                         client->state = UNREACHABLE;
-                        remove_client(&hash_table, client->id);
+                        //remove_client(&hash_table, client->id);
                     }
                 }
                 else
@@ -233,9 +232,15 @@ char *generate_client_id_from_socket(int client_socket){
     char *client_id = malloc(22* sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
 
     if (getpeername(client_socket, (struct sockaddr*)&addr, &addr_len) == -1) {
-        output_log("generate_client_id_from_socket : Error getting peer name\n", LOG_ERROR, LOG_TO_ALL);
-        free(client_id);
-        return NULL;
+        Client *client = find_client_by_socket(&hash_table, client_socket);
+        if (client) {
+            snprintf(client_id, 22, "%s", client->id);
+            return client_id;
+        }else{
+            output_log("generate_client_id_from_socket : Error getting peer name\n", LOG_ERROR, LOG_TO_ALL);
+            free(client_id);
+            return NULL;
+        }
     }
 
     char ip[INET_ADDRSTRLEN];

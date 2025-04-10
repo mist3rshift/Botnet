@@ -25,7 +25,7 @@ void test_add_find_client() {
     print_client_table(&table);
     Client *c1 = find_client(&table, "client1");
     Client *c2 = find_client(&table, "client2");
-    Client *c3 = find_client(&table, "client3");
+    Client *c3 = find_client_by_socket(&table, 3);
 
     printf("Test add/find: %s\n", (c1 && c2 && c3) ? "SUCCESS" : "FAIL");
 

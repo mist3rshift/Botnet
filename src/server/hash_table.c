@@ -92,6 +92,21 @@ Client *find_client(const ClientHashTable *hashTable, const char *id) {
     return NULL;
 }
 
+//Rechercher un client par socket dans la table de hachage
+Client *find_client_by_socket(const ClientHashTable *hashTable, const int socket) {
+    for (size_t i = 0; i < hashTable->size; i++) {
+        Client *client = hashTable->table[i];
+        while (client != NULL) {
+            if (client->socket == socket) {
+                return client;
+            }
+            client = client->next;
+        }
+    }
+    return NULL;
+}
+
+
 // Supprimer un client de la table de hachage
 void remove_client(ClientHashTable *hashTable, const char *id) {
     const unsigned int index = hash(id, hashTable->size);
