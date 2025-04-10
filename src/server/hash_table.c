@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+
 //Import local files
 #include "../../include/logging.h"
 #include "../../include/server/hash_table.h"
@@ -59,24 +60,29 @@ void resize_client_table(ClientHashTable *hashTable) {
 }
 
 // Ajouter un client à la table de hachage
-void add_client(ClientHashTable *hashTable, const char *id, const int socket,ClientState state) {
-    if ((double)hashTable->count / hashTable->size > LOAD_FACTOR) {
-        resize_client_table(hashTable);
-    }
+void add_client(ClientHashTable *hash_table, const char *id, int socket, ClientState state) {
+    // Vérifiez si le client existe déjà
+    Client *existing_client = find_client_by_socket(hash_table, socket);
+    if (existing_client) {
+        // Mettre à jour l'état et le socket
+        existing_client->socket = socket;
+        existing_client->state = state;
 
-    unsigned int index = hash(id, hashTable->size);
-    Client *newClient = (Client *)malloc(sizeof(Client));
-    if (!newClient) {
-        output_log("Erreur d'allocation mémoire dans add_client()\n", LOG_ERROR, LOG_TO_ALL);
         return;
     }
-    printf("id : %s\n", id);
-    strcpy(newClient->id, id);
-    newClient->socket = socket;
-    newClient->state = state;  // Initialisation de l'état de connexion
-    newClient->next = hashTable->table[index];
-    hashTable->table[index] = newClient;
-    hashTable->count++;
+
+    // Si le client n'existe pas, ajoutez-le
+    Client *new_client = malloc(sizeof(Client));
+    strncpy(new_client->id, id, sizeof(new_client->id) - 1);
+    new_client->id[sizeof(new_client->id) - 1] = '\0';
+    new_client->socket = socket;
+    new_client->state = state;
+    new_client->next = NULL;
+
+    // Ajoutez le client à la table de hachage
+    unsigned int index = hash(id, hash_table->size);
+    new_client->next = hash_table->table[index];
+    hash_table->table[index] = new_client;
 }
 
 // Rechercher un client dans la table de hachage
@@ -161,3 +167,4 @@ void print_client_table(const ClientHashTable *hashTable) {
         }
     }
 }
+
