@@ -13,53 +13,45 @@ extern ClientHashTable hash_table;
 
 void receive_message_server(int client_socket) {
     char buffer[1024];
-    ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_received <= 0) {
-        output_log("Error receiving message from client", LOG_ERROR, LOG_TO_ALL);
-        return;
-    }
+    int bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
-    buffer[bytes_received] = '\0'; // Null-terminate the received message
-
-    // Find the client in the hash table using the socket
-    char *client_id = generate_client_id_from_socket(client_socket); // Assume this function exists
-    if (client_id == NULL) {
-        output_log("Error: Could not generate client ID for socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
-        return;
-    }
-
-    Client *client = find_client(&hash_table, client_id);
-    if (client == NULL) {
-        output_log("Error: Client with ID %s not found\n", LOG_ERROR, LOG_TO_ALL, client_id);
-        free(client_id);
-        return;
-    }
-
-    // Define the directory for client message files
-    const char *directory = "client_messages";
-
-    // Create the directory if it doesn't exist
-    struct stat st = {0};
-    if (stat(directory, &st) == -1) {
-        if (mkdir(directory, 0755) != 0) {
-            output_log("Error creating directory for client messages", LOG_ERROR, LOG_TO_ALL);
-            free(client_id);
-            return;
+    if (bytes_read <= 0) {
+        // Client disconnected or error occurred
+        if (bytes_read == 0) {
+            output_log("Client disconnected: socket %d\n", LOG_INFO, LOG_TO_ALL, client_socket);
+        } else {
+            output_log("Error reading from socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
         }
+
+        // Update the client's state to DISCONNECTED
+        char *client_id = generate_client_id_from_socket(client_socket);
+        if (client_id != NULL) {
+            Client *client = find_client(&hash_table, client_id);
+            if (client) {
+                client->state = UNREACHABLE;
+            }
+            free(client_id);
+        }
+
+        // Close the socket
+        close(client_socket);
+        return;
     }
 
-    // Construct the file path
-    char filepath[512];
-    snprintf(filepath, sizeof(filepath), "%s/%s_messages.txt", directory, client->id);
+    // Null-terminate the buffer and process the message
+    buffer[bytes_read] = '\0';
+    output_log("Received message from socket %d: %s\n", LOG_INFO, LOG_TO_ALL, client_socket, buffer);
 
-    // Write the received message to the file
-    FILE *file = fopen(filepath, "a");
-    if (file) {
-        fprintf(file, "%s:%s\n", client->id, buffer);
-        fclose(file);
-    } else {
-        output_log("Error writing message from %s to file", LOG_ERROR, LOG_TO_ALL, client->id);
+    // Update the client's state to ACTIVE
+    char *client_id = generate_client_id_from_socket(client_socket);
+    if (client_id != NULL) {
+        Client *client = find_client(&hash_table, client_id);
+        if (client) {
+            client->state = ACTIVE;
+        }
+        free(client_id);
     }
 
-    free(client_id); // Free the dynamically allocated client ID
+    // Process the message (this can be extended as needed)
+    // For example, you could parse commands or forward messages to other clients
 }

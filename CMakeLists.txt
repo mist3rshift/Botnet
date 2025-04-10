@@ -29,13 +29,22 @@ add_executable(client # Define the client build
 )
 
 add_executable(test_hash_table # Define the test hash table
-    tests/test_hash_table.c
-    src/server/hash_table.c  
-    src/logging.c  
+        tests/test_hash_table.c
+        src/server/hash_table.c  
+        src/logging.c  
 )
 
 add_executable(test_commands # Define the tests for commands
         tests/test_commands.c
         src/commands.c
         src/logging.c
+)
+
+add_executable(test_webserver # Define the tests for the webserver
+        tests/test_webserver.c
+        src/web_server.c
+        src/logging.c
+        lib/mongoose.c
+        src/server/hash_table.c
+        src/commands.c
 )

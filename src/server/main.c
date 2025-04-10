@@ -116,9 +116,15 @@ void handle_client_connections(int serverSocket)
         read_set = master_set;
 
         // Use select to monitor sockets
-        if (select(max_fd + 1, &read_set, NULL, NULL, NULL) < 0)
+        int activity = select(max_fd + 1, &read_set, NULL, NULL, NULL);
+        if (activity < 0)
         {
-            output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error in select");
+            if (errno == EINTR) {
+                // Interrupted by a signal, continue
+                continue;
+            }
+            output_log("handle_client_connections : Error in select (%s)\n", LOG_ERROR, LOG_TO_ALL, strerror(errno));
+            break; // Exit the loop on critical error
         }
 
         // Check for new connections
@@ -128,7 +134,7 @@ void handle_client_connections(int serverSocket)
             int new_socket = accept(serverSocket, (struct sockaddr *)&cli_addr, &clilen);
             if (new_socket < 0)
             {
-                output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error accepting new connection");
+                output_log("handle_client_connections : Error accepting new connection (%s)\n", LOG_ERROR, LOG_TO_ALL, strerror(errno));
                 continue;
             }
 
@@ -148,11 +154,11 @@ void handle_client_connections(int serverSocket)
                     char *client_id = generate_client_id_from_socket(new_socket);
                     if (client_id == NULL)
                     {
-                        output_log("%s\n", LOG_ERROR, LOG_TO_ALL, "handle_client_connections : Error generating client ID");
+                        output_log("handle_client_connections : Error generating client ID\n", LOG_ERROR, LOG_TO_ALL);
                         continue;
                     }
                     add_client(&hash_table, client_id, new_socket, LISTENING);
-                    //print_client_table(&hash_table);
+                    free(client_id);
                     break;
                 }
             }
@@ -164,25 +170,62 @@ void handle_client_connections(int serverSocket)
             int client_socket = client_sockets[i];
             if (client_socket > 0 && FD_ISSET(client_socket, &read_set))
             {
-                receive_message_server(client_socket); // handle recv data
+                char buffer[1024];
+                int bytes_read = recv(client_socket, buffer, sizeof(buffer), 0);
 
-                // Update the client's state to ACTIVE
-                char *client_id = generate_client_id_from_socket(client_socket);
-                if (client_id != NULL)
+                if (bytes_read <= 0) // Client disconnected or error
                 {
-                    Client *client = find_client(&hash_table, client_id);
-                    if (client)
+                    if (bytes_read == 0)
                     {
-                        client->state = ACTIVE;
+                        output_log("Client disconnected: socket %d\n", LOG_INFO, LOG_TO_ALL, client_socket);
                     }
-                    free(client_id);
+                    else
+                    {
+                        output_log("Error reading from socket %d (%s)\n", LOG_ERROR, LOG_TO_ALL, client_socket, strerror(errno));
+                    }
+
+                    // Remove the socket from the master set
+                    FD_CLR(client_socket, &master_set);
+
+                    // Mark the client as UNREACHABLE
+                    char *client_id = generate_client_id_from_socket(client_socket);
+                    if (client_id != NULL)
+                    {
+                        Client *client = find_client(&hash_table, client_id);
+                        if (client)
+                        {
+                            client->state = UNREACHABLE;
+                        }
+                        free(client_id);
+                    }
+
+                    // Close the socket and clear it from the client list
+                    close(client_socket);
+                    client_sockets[i] = 0;
+                }
+                else
+                {
+                    // Handle received data
+                    buffer[bytes_read] = '\0'; // Null-terminate the buffer
+                    output_log("Received message from socket %d: %s\n", LOG_INFO, LOG_TO_ALL, client_socket, buffer);
+
+                    // Update the client's state to LISTENING
+                    char *client_id = generate_client_id_from_socket(client_socket);
+                    if (client_id != NULL)
+                    {
+                        Client *client = find_client(&hash_table, client_id);
+                        if (client)
+                        {
+                            client->state = LISTENING;
+                        }
+                        free(client_id);
+                    }
                 }
             }
         }
     }
 
     // Cleanup the hash table
-    //print_client_table(&hash_table);
     free_client_table(&hash_table);
 }
 
