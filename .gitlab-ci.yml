@@ -19,3 +19,4 @@ test:
   script:
     - ./build/test_commands
     - ./build/test_hash_table
+    - ./build/test_webserver

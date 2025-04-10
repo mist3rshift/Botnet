@@ -17,8 +17,7 @@
 extern ClientHashTable hash_table;
 
 static const char *static_dir = "../static"; // Website files
-bool stop_server = false; // Define the stop_server flag
-
+volatile bool stop_server = false; // Define the stop_server flag
 
 // Function to serve static files
 static void serve_static_file(struct mg_connection *c, struct mg_http_message *hm) {
@@ -321,7 +320,7 @@ void *start_web_interface(void *arg) {
     struct mg_connection *c = mg_http_listen(&mgr, DEFAULT_WEB_ADDR ":" DEFAULT_WEB_PORT, handle_request, NULL);
     if (c == NULL) {
         output_log("Cannot start web server on %s:%s\n", LOG_ERROR, LOG_TO_ALL, DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
-
+        return NULL;
     }
 
     output_log("Web server started on %s:%s\n", LOG_INFO, LOG_TO_ALL, DEFAULT_WEB_ADDR, DEFAULT_WEB_PORT);
@@ -332,4 +331,5 @@ void *start_web_interface(void *arg) {
     }
 
     mg_mgr_free(&mgr); // Free resources
+    return NULL;
 }
