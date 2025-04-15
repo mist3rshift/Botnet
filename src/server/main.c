@@ -44,7 +44,8 @@ int main(int argc, char *argv[])
     output_log("Listening on port %s...\n", LOG_INFO, LOG_TO_ALL, DEFAULT_SERVER_PORT);
 
     pthread_t web_thread;
-    if (pthread_create(&web_thread, NULL, start_web_interface, NULL) != 0) {
+    if (pthread_create(&web_thread, NULL, start_web_interface, NULL) != 0)
+    {
         // Start web serv in another thread
         fprintf(stderr, "Failed to create web interface thread\n");
         return 1;
@@ -56,7 +57,7 @@ int main(int argc, char *argv[])
     pthread_join(web_thread, NULL);
 
     close(serverSocket); // Close the socket cleanly too
-    
+
     return 0;
 }
 
@@ -70,7 +71,6 @@ int initialize_server_socket(int port)
     if ((serverSocket = socket(PF_INET, SOCK_STREAM, 0)) < 0)
     {
         server_setup_failed_exception("initialize_server_socket : Error while creating server socket");
-        exit(1);
     }
 
     // Configure the server address structure
@@ -83,14 +83,12 @@ int initialize_server_socket(int port)
     if (bind(serverSocket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
         server_socket_bind_exception("initialize_server_socket : Error while binding server socket\n");
-        exit(1);
     }
 
     // Start listening for incoming connections
-    if (listen(serverSocket,MAX_CLIENTS ) < 0)
+    if (listen(serverSocket, MAX_CLIENTS) < 0)
     {
         server_setup_failed_exception("initialize_server_socket : Error before server socket listening\n");
-        exit(1);
     }
 
     return serverSocket;
@@ -119,7 +117,8 @@ void handle_client_connections(int serverSocket)
         int activity = select(max_fd + 1, &read_set, NULL, NULL, NULL);
         if (activity < 0)
         {
-            if (errno == EINTR) {
+            if (errno == EINTR)
+            {
                 // Interrupted by a signal, continue
                 continue;
             }
@@ -229,29 +228,33 @@ void handle_client_connections(int serverSocket)
     free_client_table(&hash_table);
 }
 
-char *generate_client_id_from_socket(int client_socket){
+char *generate_client_id_from_socket(int client_socket)
+{
     struct sockaddr_in addr;
     socklen_t addr_len = sizeof(addr);
-    char *client_id = malloc(22* sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
+    char *client_id = malloc(22 * sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
 
     Client *client = find_client_by_socket(&hash_table, client_socket);
-    if (client) {
-            snprintf(client_id, 22, "%s", client->id);
-            return client_id;
-    }else{
-        if (getpeername(client_socket, (struct sockaddr*)&addr, &addr_len) == -1) {
+    if (client)
+    {
+        snprintf(client_id, 22, "%s", client->id);
+        return client_id;
+    }
+    else
+    {
+        if (getpeername(client_socket, (struct sockaddr *)&addr, &addr_len) == -1)
+        {
             output_log("generate_client_id_from_socket : Error getting peer name\n", LOG_ERROR, LOG_TO_ALL);
-        free(client_id);
-        return NULL;
-        }else{                
+            free(client_id);
+            return NULL;
+        }
+        else
+        {
             char ip[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);
             int port = ntohs(addr.sin_port);
             snprintf(client_id, 22, "%s:%d", ip, port);
             return client_id;
         }
-            
     }
-
 }
-
