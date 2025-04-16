@@ -48,21 +48,23 @@ int main(int argc, char *argv[])
 
     send_message(sockfd, "Hello!");
 
-    // Test : Reading and executing from a Command structure
+    /*
     Command *cmd = build_command("cmd_01", 2, "ls", 0, "-l");
     int result = execute_command(cmd);
     free_command(cmd);
-    // Test : sending the 3 last lines of main.log file to server
     char *buffer = read_client_log_file(3);
     send_message(sockfd, buffer);
     free(buffer);
+    */
 
+    enum OrderType order_type;
     for (;;)
     {
         char buffer[1024];
         int bytes_read = recv(sockfd, buffer, sizeof(buffer), 0);
+        order_type = get_order_enum_type(buffer);
+        execute_order_from_server(sockfd, order_type, buffer);
         output_log("Received from server %d: %s\n", LOG_INFO, LOG_TO_ALL, sockfd, buffer);
-        // function to get the type of order from the buffer (command, asking for logs, asking for state, ...)
     }
 
     return 0;
