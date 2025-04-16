@@ -96,6 +96,7 @@ void receive_command(const int delay, const char *program, ...)
     }
 }
 
+// Execute a command from a Command structure, return exit_code or -1
 int execute_command(const Command *cmd)
 {
     if (!cmd || !cmd->program || !cmd->params)
@@ -115,7 +116,7 @@ int execute_command(const Command *cmd)
     }
     if (pid == 0) // Child process is executing
     {
-        execvp(cmd->program, cmd->params);
+        int result = execvp(cmd->program, cmd->params);
     }
     else // Parent process is executing : wait for the end of child process
     {
@@ -123,16 +124,23 @@ int execute_command(const Command *cmd)
         if (waitpid(pid, &status, 0) == -1)
         {
             perror("waitpid failed");
+            output_log("Failed to execute command \"%s\" because waitpid failed.\n", LOG_ERROR, LOG_TO_ALL, cmd->program);
             return -1;
         }
         if (WIFEXITED(status))
         {
             int exit_code = WEXITSTATUS(status);
-            return (exit_code == cmd->expected_exit_code) ? 0 : exit_code;
+            if (exit_code == cmd->expected_exit_code){
+                output_log("Successfully executed command \"%s\" - exit code : %d\n", LOG_INFO, LOG_TO_ALL, cmd->program, exit_code);
+                return 0;
+            }else{
+                output_log("Executed command \"%s\" but got unexpected exit code \"%d\"\n", LOG_INFO, LOG_TO_ALL, cmd->program, exit_code);
+                return exit_code;
+            }
         }
         else
         {
-            printf("Error while executing command\n");
+            output_log("Failed to execute command \"%s\" because of unknown error.\n", LOG_ERROR, LOG_TO_ALL, cmd->program);
             return -1;
         }
     }

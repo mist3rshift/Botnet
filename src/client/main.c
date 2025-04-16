@@ -7,6 +7,7 @@
 #include "../../include/send_message.h"
 #include "../../include/launch_arguments.h"
 #include "../../include/commands.h"
+#include "../../include/client/client_utils.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -14,18 +15,6 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
-bool isCommand(char *buffer)
-{
-    if (-1) // how to differenciate command buffer from simple messages buffer ?
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
 
 int main(int argc, char *argv[])
 {
@@ -61,19 +50,19 @@ int main(int argc, char *argv[])
 
     // Test : Reading and executing from a Command structure
     Command *cmd = build_command("cmd_01", 2, "ls", 0, "-l");
-    int result = execute_command(cmd); // -1 or exit_code
-    // Client Log to a file
+    int result = execute_command(cmd);
     free_command(cmd);
+    // Test : sending the 3 last lines of main.log file to server
+    char *buffer = read_client_log_file(3);
+    send_message(sockfd, buffer);
+    free(buffer);
 
     for (;;)
     {
         char buffer[1024];
         int bytes_read = recv(sockfd, buffer, sizeof(buffer), 0);
-        if (isCommand(buffer))
-        {
-            int result = execute_command(cmd);
-        }
         output_log("Received from server %d: %s\n", LOG_INFO, LOG_TO_ALL, sockfd, buffer);
+        // function to get the type of order from the buffer (command, asking for logs, asking for state, ...)
     }
 
     return 0;

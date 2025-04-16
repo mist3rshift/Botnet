@@ -22,6 +22,7 @@ add_executable(server # Define the server build
 add_executable(client # Define the client build
         src/client/main.c
         src/client/client_errors.c
+        src/client/client_utils.c
         src/send_message.c
         src/logging.c
         src/commands.c
