@@ -7,6 +7,14 @@
 #include "../include/commands.h"
 #include "../include/logging.h"
 
+int test_serialize(){
+    Command *cmd = build_command("test1", 1000, "echo", 0, "Hello World", "-a", "-b", NULL);
+    char* buffer[1025];
+    serialize_command(cmd, buffer, sizeof(buffer));
+    printf("%s", buffer);
+    return 0;
+}
+
 int main() {
     int total = 0;
     int errors = 0;
@@ -34,5 +42,6 @@ int main() {
     } else {
         output_log("All tests passed : %d", LOG_INFO, LOG_TO_CONSOLE, total);
     }
+    test_serialize();
     return 0;
 }

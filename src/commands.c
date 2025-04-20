@@ -145,3 +145,45 @@ int execute_command(const Command *cmd)
         }
     }
 }
+
+void serialize_command(const Command* cmd, char* buffer, size_t buffer_size){
+    char params[101];
+    for(int i = 0; cmd->params[i]!= NULL; i++){
+        strcat(params, cmd->params[i]);
+        strcat(params, " ");
+    }
+
+    snprintf(buffer, buffer_size, "%s|%d|%s|%s|%d|%ld",
+    cmd->cmd_id, cmd->delay, cmd->program, params, cmd->expected_exit_code, cmd->timestamp); 
+};
+/*
+void deserialize_command(char* buffer, Command* cmd){
+    int delay, expected_exit_code;
+    char cmd_id[32], program[201], params[201];
+    time_t timestamp;
+
+    sscanf(buffer, "%31s[^|]%d|%200s[^|]%200s[^|]%d|%ld",
+    cmd_id, delay, program, params, expected_exit_code, timestamp);
+
+    char** temp_params = malloc(10* sizeof(char *));
+    int i = 0;
+    char* tmp[10];
+    while(params != NULL){
+        if (params == " "){
+            temp_params[i] = tmp;
+            char* tmp[10];
+            i++;
+        }
+        else{
+            strcat(tmp, params);
+        }
+    }
+    
+    strncpy(cmd->cmd_id, cmd_id, sizeof(cmd->cmd_id) - 1);
+    cmd->delay =  delay;
+    cmd->program = program;
+    cmd->expected_exit_code = expected_exit_code;
+    cmd->timestamp = timestamp;
+    cmd->params = temp_params;
+}
+*/

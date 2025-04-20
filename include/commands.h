@@ -35,4 +35,6 @@ void send_command(const int delay, const char *program, ...);
 void receive_command(const int delay, const char *program, ...);
 int execute_command(const Command *cmd);
 
+void serialize_command(const Command* cmd, char* buffer, size_t buffer_size);
+void deserialize_command(char* buffer, const Command* cmd);
 #endif
