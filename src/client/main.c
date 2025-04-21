@@ -15,30 +15,31 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/select.h> // For fd_set and struct timeval
 
 int main(int argc, char *argv[])
 {
-    parse_arguments(argc, argv); // Sets the
-
-    // server_ip_not_found_exception("Failed to find server IP");
+    parse_arguments(argc, argv); // Parse launch arguments
 
     struct sockaddr_in serv_addr;
     int sockfd;
 
-    // client socket creation
+    // Create client socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0)
     {
         client_setup_failed_exception("Error while creating client socket");
     }
 
-    // filling the server socket structure to which the client will be connected
+    // Fill the server socket structure
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons((uint16_t)atoi(DEFAULT_SERVER_PORT));
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-    // Connection to the server
+    // Connect to the server
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
         client_setup_failed_exception("Error while client trying to connect to the server");
@@ -46,26 +47,44 @@ int main(int argc, char *argv[])
 
     output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, "127.0.0.1", DEFAULT_SERVER_PORT);
 
+    // Send an initial message to the server
     send_message(sockfd, "Hello!");
 
-    /*
-    Command *cmd = build_command("cmd_01", 2, "ls", 0, "-l");
-    int result = execute_command(cmd);
-    free_command(cmd);
-    char *buffer = read_client_log_file(3);
-    send_message(sockfd, buffer);
-    free(buffer);
-    */
-
-    enum OrderType order_type;
-    for (;;)
+    // Main loop to monitor and process incoming data
+    while (1)
     {
-        char buffer[1024];
-        int bytes_read = recv(sockfd, buffer, sizeof(buffer), 0);
-        order_type = get_order_enum_type(buffer);
-        execute_order_from_server(sockfd, order_type, buffer);
-        output_log("Received from server %d: %s\n", LOG_INFO, LOG_TO_ALL, sockfd, buffer);
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(sockfd, &read_fds);
+
+        // Use select to monitor the socket for incoming data
+        struct timeval timeout = {5, 0}; // 5-second timeout
+        int activity = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
+
+        if (activity < 0)
+        {
+            perror("Error in select");
+            break;
+        }
+        else if (activity == 0)
+        {
+            // Timeout occurred, no data received
+            output_log("No data received from server, continuing...\n", LOG_DEBUG, LOG_TO_ALL);
+            continue;
+        }
+
+        // Check if the socket has data to read
+        if (FD_ISSET(sockfd, &read_fds))
+        {
+            output_log("Receiving data, processing message\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            // Use receive_and_process_message to handle incoming data
+            receive_and_process_message(sockfd);
+        }
     }
+
+    // Clean up and close the connection
+    close(sockfd);
+    output_log("Disconnected from server\n", LOG_INFO, LOG_TO_ALL);
 
     return 0;
 }

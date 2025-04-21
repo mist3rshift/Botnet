@@ -1,4 +1,5 @@
 #include "../include/logging.h"
+#include "../include/commands.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

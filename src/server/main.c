@@ -12,6 +12,7 @@
 #include "../../include/launch_arguments.h"
 #include "../../include/web_server.h"
 #include "../../include/receive_message.h"
+#include "../../include/server/server_utils.h"
 
 #include <stddef.h>
 #include <pthread.h>
@@ -22,6 +23,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <time.h>
 
 int main(int argc, char *argv[])
 {
@@ -169,19 +171,10 @@ void handle_client_connections(int serverSocket)
             int client_socket = client_sockets[i];
             if (client_socket > 0 && FD_ISSET(client_socket, &read_set))
             {
-                char buffer[1024];
-                int bytes_read = recv(client_socket, buffer, sizeof(buffer), 0);
-
-                if (bytes_read <= 0) // Client disconnected or error
+                // Use receive_message_server to handle incoming data
+                if (receive_message_server(client_socket) < 0)
                 {
-                    if (bytes_read == 0)
-                    {
-                        output_log("Client disconnected: socket %d\n", LOG_INFO, LOG_TO_ALL, client_socket);
-                    }
-                    else
-                    {
-                        output_log("Error reading from socket %d (%s)\n", LOG_ERROR, LOG_TO_ALL, client_socket, strerror(errno));
-                    }
+                    output_log("Error handling message from socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
 
                     // Remove the socket from the master set
                     FD_CLR(client_socket, &master_set);
@@ -202,59 +195,10 @@ void handle_client_connections(int serverSocket)
                     close(client_socket);
                     client_sockets[i] = 0;
                 }
-                else
-                {
-                    // Handle received data
-                    buffer[bytes_read] = '\0'; // Null-terminate the buffer
-                    output_log("Received message from socket %d: %s\n", LOG_INFO, LOG_TO_ALL, client_socket, buffer);
-
-                    // Update the client's state to LISTENING
-                    char *client_id = generate_client_id_from_socket(client_socket);
-                    if (client_id != NULL)
-                    {
-                        Client *client = find_client(&hash_table, client_id);
-                        if (client)
-                        {
-                            client->state = LISTENING;
-                        }
-                        free(client_id);
-                    }
-                }
             }
         }
     }
 
     // Cleanup the hash table
     free_client_table(&hash_table);
-}
-
-char *generate_client_id_from_socket(int client_socket)
-{
-    struct sockaddr_in addr;
-    socklen_t addr_len = sizeof(addr);
-    char *client_id = malloc(22 * sizeof(char)); // 15 for IP + 1 for ':' + 5 for port + 1 for '\0'
-
-    Client *client = find_client_by_socket(&hash_table, client_socket);
-    if (client)
-    {
-        snprintf(client_id, 22, "%s", client->id);
-        return client_id;
-    }
-    else
-    {
-        if (getpeername(client_socket, (struct sockaddr *)&addr, &addr_len) == -1)
-        {
-            output_log("generate_client_id_from_socket : Error getting peer name\n", LOG_ERROR, LOG_TO_ALL);
-            free(client_id);
-            return NULL;
-        }
-        else
-        {
-            char ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(addr.sin_addr), ip, INET_ADDRSTRLEN);
-            int port = ntohs(addr.sin_port);
-            snprintf(client_id, 22, "%s:%d", ip, port);
-            return client_id;
-        }
-    }
 }

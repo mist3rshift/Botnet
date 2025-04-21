@@ -7,17 +7,17 @@
 #include <unistd.h>
 #endif
 
+#include "../include/client/client_utils.h"
 #include <time.h>
 
-typedef struct
-{
-    char cmd_id[32];        // Understand which command is being sent by ID
-    int delay;              // Delay to wait for cmd execution
-    const char *program;    // Program name (ls, cat, ...)
-    char **params;          // Params to the command
-    int expected_exit_code; // Expect a return code
-    // unsigned char sig[64]; Should we sign??
-    time_t timestamp; // For logs, record creation date
+typedef struct Command {
+    char cmd_id[64];          // Fixed-size array for cmd_id
+    int delay;                // Optional delay in milliseconds
+    char *program;            // Base program (e.g., "ls", "cat")
+    int expected_exit_code;   // Optional expected exit code
+    char **params;            // Null-terminated array of parameters
+    enum OrderType order_type; // Type of command
+    time_t timestamp;         // Timestamp for when the command was created
 } Command;
 
 static inline void sleep_ms(unsigned milliseconds)
@@ -29,12 +29,10 @@ static inline void sleep_ms(unsigned milliseconds)
 #endif
 }
 
-Command *build_command(const char *cmd_id, int delay, const char *program, int expected_code, ...);
+Command *build_command(const char *cmd_id, int delay, const char *program, int expected_code, time_t timestamp, ...);
 void free_command(Command *cmd);
-void send_command(const int delay, const char *program, ...);
-void receive_command(const int delay, const char *program, ...);
-int execute_command(const Command *cmd);
+int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size);
 
 void serialize_command(const Command* cmd, char* buffer, size_t buffer_size);
-void deserialize_command(char* buffer, const Command* cmd);
+void deserialize_command(char *buffer, Command *cmd);
 #endif

@@ -81,10 +81,19 @@ function getQueryParam(param) {
     return urlParams.get(param);
 }
 
+// Function to set the bot ID in the hidden input field
+function setBotId(botId) {
+    const clientIdInput = document.getElementById('client-id'); // Hidden input for bot_id
+    if (clientIdInput) {
+        clientIdInput.value = botId;
+    }
+}
+
 // On page load, fetch the last `linesPerPage` lines and start the timer
 window.onload = () => {
     const botId = getQueryParam('id');
     if (botId) {
+        setBotId(botId); // Populate the hidden input field with the bot ID
         offset = 0; // Reset offset for "Load More"
         refreshOffset = 0; // Reset offset for refresh
         fetchBotLogs(botId); // Fetch the logs for the specified bot ID
@@ -98,6 +107,7 @@ window.onload = () => {
 document.getElementById('load-client').addEventListener('click', () => {
     const clientId = document.getElementById('client-id').value.trim();
     if (clientId) {
+        setBotId(clientId); // Update the hidden input field with the new bot ID
         offset = 0; // New line n° offset
         refreshOffset = 0; // New line n° offset
         fetchBotLogs(clientId); // Get file data
@@ -115,6 +125,7 @@ document.getElementById('force-refresh').addEventListener('click', () => {
 function forcerefresh() {
     const botId = getQueryParam('id') || document.getElementById('client-id').value.trim();
     if (botId) {
+        setBotId(botId); // Ensure the hidden input field is updated
         fetchBotLogs(botId, false, true); // Refresh the most recent lines
         countdown = 30; // Reset the countdown
     } else {
@@ -126,10 +137,11 @@ function forcerefresh() {
 document.getElementById('load-more').addEventListener('click', async () => {
     const botId = getQueryParam('id') || document.getElementById('client-id').value.trim();
     if (botId) {
+        setBotId(botId); // Ensure the hidden input field is updated
         offset += linesPerPage; // Increase the offset for "Load More"
         fetchBotLogs(botId, true); // Fetch more lines and prepend
         await new Promise(r => setTimeout(r, 1)); // For some reason, we need to wait for just a little (1ms)
-        forcerefresh() // Allows to reset the line numbers :)
+        forcerefresh(); // Allows to reset the line numbers :)
     } else {
         alert('Please enter a valid Bot ID.');
     }

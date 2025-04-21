@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include "../include/commands.h"
 
 /**
  * Sends a message to the server.
@@ -15,5 +16,6 @@
  * @return 0 on success, -1 on failure.
  */
 int send_message(int sockfd, const char *message);
+int send_command(int sockfd, const Command *cmd);
 
 #endif
