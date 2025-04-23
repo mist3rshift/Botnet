@@ -58,23 +58,24 @@ Command *build_command(const char *cmd_id, int delay, const char *program, int e
     return cmd;
 }
 
-void free_command(Command *cmd)
-{
-    if (!cmd)
-        return;
-    if (cmd->program)
-        free((char *)cmd->program);
-    if (cmd->params)
-    {
-        for (int i = 0; cmd->params[i] != NULL; i++)
-        {
+void free_command(Command *cmd) {
+    if (!cmd) return;
+
+    // Free the program field if it was dynamically allocated
+    if (cmd->program) {
+        free(cmd->program);
+        cmd->program = NULL;
+    }
+
+    // Free the params array if it was dynamically allocated
+    if (cmd->params) {
+        for (size_t i = 0; cmd->params[i] != NULL; ++i) {
             free(cmd->params[i]);
         }
         free(cmd->params);
+        cmd->params = NULL;
     }
-    free(cmd);
 }
-
 
 int send_command(int sockfd, const Command *cmd) {
     if (cmd == NULL) {

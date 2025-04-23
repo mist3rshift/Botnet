@@ -74,7 +74,37 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
     Command cmd;
     deserialize_command((char *)raw_message, &cmd);
 
-    // Execute command
+    // Check if the command is a `cd` command
+    if (strcmp(cmd.program, "cd") == 0) {
+        if (cmd.params && cmd.params[0]) {
+            // Change the working directory
+            if (chdir(cmd.params[0]) == 0) {
+                send_message(sockfd, "Directory changed successfully");
+            } else {
+                send_message(sockfd, "Failed to change directory");
+            }
+        } else {
+            send_message(sockfd, "No directory specified");
+        }
+
+        free_command(&cmd); // Properly free the Command structure
+        return 0; // No further processing needed
+    }
+
+    // Check if the command is a `pwd` command
+    if (strcmp(cmd.program, "pwd") == 0) {
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            send_message(sockfd, cwd); // Send the current working directory back to the server
+        } else {
+            send_message(sockfd, "Error retrieving cwd");
+        }
+
+        free_command(&cmd); // Properly free the Command structure
+        return 0; // No further processing needed
+    }
+
+    // Execute other commands
     char result_buffer[4096] = {0};
     int exit_code = execute_command(&cmd, result_buffer, sizeof(result_buffer));
 
@@ -85,15 +115,7 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
         send_message(sockfd, "Command execution failed");
     }
 
-    // Cleanup
-    if (cmd.program) free(cmd.program);
-    if (cmd.params) {
-        for (size_t i = 0; cmd.params[i]; ++i) {
-            free(cmd.params[i]);
-        }
-        free(cmd.params);
-    }
-
+    free_command(&cmd); // Properly free the Command structure
     return exit_code;
 }
 
