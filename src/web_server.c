@@ -5,7 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdbool.h>
-
+#include "../lib/cJSON.h"
 #include "../lib/mongoose.h"
 #include "../include/server/hash_table.h"
 #include "../include/commands.h"
@@ -419,11 +419,22 @@ void handle_get_cwd(struct mg_connection *c, struct mg_http_message *hm) {
         return;
     }
 
-    // Send the `cwd` back to the web interface
-    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"cwd\":\"%s\"}", buffer);
-    output_log("CWD sent back to the server!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+    // Use cJSON to create the JSON response
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(response_json, "cwd", buffer);
+
+    // Convert the JSON object to a string
+    const char *response_str = cJSON_PrintUnformatted(response_json);
+
+    // Send the JSON response
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+
+    // Free resources
+    cJSON_Delete(response_json);
+    free((void *)response_str);
     free_command(&cmd); // Free dynamically allocated fields
-    output_log("Freed a valid pointer :)\n", LOG_DEBUG, LOG_TO_CONSOLE);
+
+    output_log("CWD sent back to the server!\n", LOG_DEBUG, LOG_TO_CONSOLE);
 }
 
 // HTTP request handler

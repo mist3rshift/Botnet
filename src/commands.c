@@ -20,6 +20,9 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include "../include/send_message.h"
+#include <sys/select.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 
 Command *build_command(const char *cmd_id, int delay, const char *program, int expected_code, time_t timestamp, ...) {
@@ -114,45 +117,59 @@ int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size)
         return -1;
     }
 
-    char command[1024] = {0};
-
-    // Build the command string
-    snprintf(command, sizeof(command), "%s", cmd->program);
-    if (cmd->params) {
-        for (size_t i = 0; cmd->params[i] != NULL; ++i) {
-            strncat(command, " ", sizeof(command) - strlen(command) - 1);
-            strncat(command, cmd->params[i], sizeof(command) - strlen(command) - 1);
-        }
-    }
-
-    output_log("Executing command: %s\n", LOG_INFO, LOG_TO_ALL, command);
-
-    // Open a pipe to capture the output of the command
-    FILE *pipe = popen(command, "r");
-    if (!pipe) {
-        output_log("Failed to execute command: %s\n", LOG_ERROR, LOG_TO_ALL, strerror(errno));
+    int pipe_fd[2];
+    if (pipe(pipe_fd) == -1) {
+        perror("pipe");
         return -1;
     }
 
-    // Read the output of the command
-    size_t total_read = 0;
-    while (fgets(result_buffer + total_read, buffer_size - total_read - 1, pipe)) {
-        total_read = strlen(result_buffer);
-        if (total_read >= buffer_size - 1) {
-            output_log("Command output truncated due to buffer size\n", LOG_WARNING, LOG_TO_ALL);
-            break;
-        }
-    }
-
-    // Close the pipe and get the exit code
-    int exit_code = pclose(pipe);
-    if (exit_code == -1) {
-        output_log("Failed to close command pipe: %s\n", LOG_ERROR, LOG_TO_ALL, strerror(errno));
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
         return -1;
     }
 
-    output_log("Command executed with exit code: %d\n", LOG_INFO, LOG_TO_ALL, exit_code);
-    return exit_code;
+    if (pid == 0) {
+        // Child process
+        close(pipe_fd[0]); // Close read end
+        dup2(pipe_fd[1], STDOUT_FILENO); // Redirect stdout to pipe
+        dup2(pipe_fd[1], STDERR_FILENO); // Redirect stderr to pipe
+        close(pipe_fd[1]);
+
+        // Prepare arguments for execvp
+        char *args[64]; // Adjust size as needed
+        size_t arg_index = 0;
+
+        args[arg_index++] = cmd->program; // First argument is the program name
+
+        if (cmd->params) {
+            for (size_t i = 0; cmd->params[i] != NULL && arg_index < (sizeof(args) / sizeof(args[0])) - 1; ++i) {
+                args[arg_index++] = cmd->params[i];
+            }
+        }
+
+        args[arg_index] = NULL; // Null-terminate the argument list
+
+        // Execute the command
+        execvp(cmd->program, args);
+        perror("execvp");
+        exit(1);
+    } else {
+        // Parent process
+        close(pipe_fd[1]); // Close write end
+
+        ssize_t bytes_read = read(pipe_fd[0], result_buffer, buffer_size - 1);
+        if (bytes_read > 0) {
+            result_buffer[bytes_read] = '\0'; // Null-terminate the result
+        } else {
+            strcpy(result_buffer, "Error reading command output");
+        }
+
+        close(pipe_fd[0]);
+        waitpid(pid, NULL, 0); // Wait for the child process to finish
+    }
+
+    return 0;
 }
 
 void serialize_command(const Command *cmd, char *buffer, size_t buffer_size) {

@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <errno.h>
+#include <sys/time.h>
 
 /**
  * Sends a message to the server.
@@ -21,6 +22,12 @@ int send_message(int sockfd, const char *message)
         output_log("Message is NULL\n", LOG_ERROR, LOG_TO_ALL);
         return -1;
     }
+
+    // Set a timeout for sending the message
+    struct timeval timeout;
+    timeout.tv_sec = 5; // 5 seconds timeout
+    timeout.tv_usec = 0;
+    setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
 
     // Send the message to the server
     ssize_t bytes_sent = send(sockfd, message, strlen(message), 0);

@@ -18,6 +18,7 @@ add_executable(server # Define the server build
         src/receive_message.c
         src/web_server.c
         lib/mongoose.c
+        lib/cJSON.c
 )
 
 add_executable(client # Define the client build
@@ -56,4 +57,5 @@ add_executable(test_webserver # Define the tests for the webserver
         src/send_message.c
         src/receive_message.c
         src/server/server_utils.c
+        lib/cJSON.c
 )

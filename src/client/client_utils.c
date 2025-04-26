@@ -95,6 +95,7 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
     if (strcmp(cmd.program, "pwd") == 0) {
         char cwd[1024];
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            output_log("Sending cwd: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cwd);
             send_message(sockfd, cwd); // Send the current working directory back to the server
         } else {
             send_message(sockfd, "Error retrieving cwd");

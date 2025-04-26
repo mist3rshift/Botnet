@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/time.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -72,6 +73,12 @@ int write_to_client_log(int client_socket, char *message) {
 
 int receive_message_server(int client_socket) {
     char buffer[1024];
+
+    struct timeval timeout;
+    timeout.tv_sec = 5; // 5 seconds timeout
+    timeout.tv_usec = 0;
+    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+
     ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
     output_log("Received message from network\n", LOG_DEBUG, LOG_TO_CONSOLE);
