@@ -44,15 +44,15 @@ int main(int argc, char *argv[]) {
     // Fill the server socket structure
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons((uint16_t)atoi(DEFAULT_SERVER_PORT));
-    serv_addr.sin_addr.s_addr = inet_addr(server_address); // Use the overwritten server address
+    serv_addr.sin_port = htons((uint16_t)atoi(server_port)); // Use global port
+    serv_addr.sin_addr.s_addr = inet_addr(server_address);  // Use global addr
 
     // Connect to the server
     if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         client_setup_failed_exception("Error while client trying to connect to the server");
     }
 
-    output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, DEFAULT_SERVER_PORT);
+    output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, server_port);
 
     // Send an initial message to the server
     send_message(sockfd, "Hello!");
