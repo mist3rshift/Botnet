@@ -152,15 +152,26 @@ int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size)
 
         // Execute the command
         execvp(cmd->program, args);
-        perror("execvp");
+        perror("execvp"); // If execvp fails, write the error to stderr
         exit(1);
     } else {
         // Parent process
         close(pipe_fd[1]); // Close write end
 
-        ssize_t bytes_read = read(pipe_fd[0], result_buffer, buffer_size - 1);
-        if (bytes_read > 0) {
-            result_buffer[bytes_read] = '\0'; // Null-terminate the result
+        memset(result_buffer, 0, buffer_size); // Clear the buffer before reading
+
+        // Read output from the pipe
+        ssize_t bytes_read = 0;
+        size_t total_bytes = 0;
+        while ((bytes_read = read(pipe_fd[0], result_buffer + total_bytes, buffer_size - total_bytes - 1)) > 0) {
+            total_bytes += bytes_read;
+            if (total_bytes >= buffer_size - 1) {
+                break; // Stop reading if the buffer is full
+            }
+        }
+
+        if (total_bytes > 0) {
+            result_buffer[total_bytes] = '\0'; // Null-terminate the result
         } else {
             strcpy(result_buffer, "Error reading command output");
         }

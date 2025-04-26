@@ -18,6 +18,14 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/select.h> // For fd_set and struct timeval
+#include <fcntl.h>
+
+// Set the socket to blocking mode
+int set_socket_blocking(int socket_fd) {
+    int flags = fcntl(socket_fd, F_GETFL, 0);
+    if (flags == -1) return -1;
+    return fcntl(socket_fd, F_SETFL, flags & ~O_NONBLOCK);
+}
 
 int main(int argc, char *argv[])
 {
@@ -32,6 +40,8 @@ int main(int argc, char *argv[])
     {
         client_setup_failed_exception("Error while creating client socket");
     }
+
+    set_socket_blocking(sockfd);
 
     // Fill the server socket structure
     bzero((char *)&serv_addr, sizeof(serv_addr));
