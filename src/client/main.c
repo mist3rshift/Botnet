@@ -5,7 +5,7 @@
 #include "../../include/logging.h"
 #include "../../include/server/server_constants.h"
 #include "../../include/send_message.h"
-#include "../../include/launch_arguments.h"
+#include "../../include/launch_arguments.h" // Include the header for argument parsing
 #include "../../include/commands.h"
 #include "../../include/client/client_utils.h"
 
@@ -27,8 +27,7 @@ int set_socket_blocking(int socket_fd) {
     return fcntl(socket_fd, F_SETFL, flags & ~O_NONBLOCK);
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     parse_arguments(argc, argv); // Parse launch arguments
 
     struct sockaddr_in serv_addr;
@@ -36,8 +35,7 @@ int main(int argc, char *argv[])
 
     // Create client socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0)
-    {
+    if (sockfd < 0) {
         client_setup_failed_exception("Error while creating client socket");
     }
 
@@ -47,22 +45,20 @@ int main(int argc, char *argv[])
     bzero((char *)&serv_addr, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons((uint16_t)atoi(DEFAULT_SERVER_PORT));
-    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serv_addr.sin_addr.s_addr = inet_addr(server_address); // Use the overwritten server address
 
     // Connect to the server
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         client_setup_failed_exception("Error while client trying to connect to the server");
     }
 
-    output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, "127.0.0.1", DEFAULT_SERVER_PORT);
+    output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, DEFAULT_SERVER_PORT);
 
     // Send an initial message to the server
     send_message(sockfd, "Hello!");
 
     // Main loop to monitor and process incoming data
-    while (1)
-    {
+    while (1) {
         fd_set read_fds;
         FD_ZERO(&read_fds);
         FD_SET(sockfd, &read_fds);
@@ -71,21 +67,17 @@ int main(int argc, char *argv[])
         struct timeval timeout = {5, 0}; // 5-second timeout
         int activity = select(sockfd + 1, &read_fds, NULL, NULL, &timeout);
 
-        if (activity < 0)
-        {
+        if (activity < 0) {
             perror("Error in select");
             break;
-        }
-        else if (activity == 0)
-        {
+        } else if (activity == 0) {
             // Timeout occurred, no data received
             output_log("No data received from server, continuing...\n", LOG_DEBUG, LOG_TO_ALL);
             continue;
         }
 
         // Check if the socket has data to read
-        if (FD_ISSET(sockfd, &read_fds))
-        {
+        if (FD_ISSET(sockfd, &read_fds)) {
             output_log("Receiving data, processing message\n", LOG_DEBUG, LOG_TO_CONSOLE);
             // Use receive_and_process_message to handle incoming data
             receive_and_process_message(sockfd);
