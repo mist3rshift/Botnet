@@ -20,4 +20,5 @@ test:
   script:
     - ./build/test_commands
     - ./build/test_hash_table
+    - ./build/test_receive_message
     - ./build/test_webserver

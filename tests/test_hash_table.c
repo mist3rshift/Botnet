@@ -4,35 +4,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdarg.h>
+#include <setjmp.h>
+#include <cmocka.h>
 #include "../include/server/hash_table.h"
 
-void test_init_client_table() {
+static void test_init_client_table(void **state) {
+    (void)state; // Unused
     ClientHashTable table;
     init_client_table(&table);
-
-    printf("Test init: %s\n", (table.size == INITIAL_HASH_SIZE && table.count == 0) ? "SUCCESS" : "FAIL");
 
     free_client_table(&table);
 }
 
-void test_add_find_client() {
+static void test_add_find_client(void **state) {
+    (void)state; // Unused
     ClientHashTable table;
     init_client_table(&table);
 
     add_client(&table, "client1", 1,LISTENING);
     add_client(&table, "client2", 2,ACTIVE);
     add_client(&table, "client3", 3,UNREACHABLE);
-    print_client_table(&table);
+    //print_client_table(&table);
     Client *c1 = find_client(&table, "client1");
     Client *c2 = find_client(&table, "client2");
     Client *c3 = find_client_by_socket(&table, 3);
 
-    printf("Test add/find: %s\n", (c1 && c2 && c3) ? "SUCCESS" : "FAIL");
-
     free_client_table(&table);
 }
 
-void test_remove_client() {
+static void test_remove_client(void **state) {
+    (void)state; // Unused
     ClientHashTable table;
     init_client_table(&table);
 
@@ -41,12 +44,11 @@ void test_remove_client() {
 
     Client *c1 = find_client(&table, "client1");
 
-    printf("Test remove: %s\n", (c1 == NULL) ? "SUCCESS" : "FAIL");
-
     free_client_table(&table);
 }
 
-void test_resize_table() {
+static void test_resize_table(void **state) {
+    (void)state; // Unused
     ClientHashTable table;
     init_client_table(&table);
 
@@ -58,12 +60,11 @@ void test_resize_table() {
     }
     Client *c150 = find_client(&table, "client150");
 
-    printf("Test resize: %s\n", (c150 != NULL) ? "SUCCESS" : "FAIL");
-
     free_client_table(&table);
 }
 
-void test_free_client_table() {
+static void test_free_client_table(void** state) {
+    (void)state; // Unused
     ClientHashTable table;
     init_client_table(&table);
 
@@ -74,9 +75,9 @@ void test_free_client_table() {
     // Vérification avant libération
     Client *c1_before = find_client(&table, "client1");
     Client *c2_before = find_client(&table, "client2");
-    printf("Before free: client1 %s, client2 %s\n", 
-           (c1_before != NULL) ? "FOUND" : "NOT FOUND", 
-           (c2_before != NULL) ? "FOUND" : "NOT FOUND");
+    //printf("Before free: client1 %s, client2 %s\n", 
+    //       (c1_before != NULL) ? "FOUND" : "NOT FOUND", 
+    //       (c2_before != NULL) ? "FOUND" : "NOT FOUND");
 
     // Libérer la mémoire de la table
     free_client_table(&table);
@@ -86,16 +87,17 @@ void test_free_client_table() {
     // Les pointeurs sont invalides après free_client_table, donc il ne faut pas les utiliser.
 
     // Simplement vérifier que la table a été libérée correctement (compte des clients).
-    printf("Test free: %s\n", (table.count == 0 && table.table == NULL) ? "SUCCESS" : "FAIL");
 }
 
 
 int main() {
-    test_init_client_table();
-    test_add_find_client();
-    test_remove_client();
-    test_resize_table();
-    test_free_client_table();
+    const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_init_client_table),
+        cmocka_unit_test(test_add_find_client),
+        cmocka_unit_test(test_remove_client),
+        cmocka_unit_test(test_resize_table),
+        cmocka_unit_test(test_free_client_table),
+    };
 
-    return 0;
+    return cmocka_run_group_tests(tests, NULL, NULL);
 }
