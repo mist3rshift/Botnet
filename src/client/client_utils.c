@@ -124,7 +124,7 @@ void receive_and_process_message(int sockfd) {
     char buffer[1024];
 
     // Receive the message from the server
-    if (receive_message_client(sockfd, buffer, sizeof(buffer)) < 0) {
+    if (receive_message_client(sockfd, buffer, sizeof(buffer), recv) < 0) {
         output_log("Failed to receive message from server\n", LOG_ERROR, LOG_TO_ALL);
         return;
     }

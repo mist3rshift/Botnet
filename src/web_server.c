@@ -412,7 +412,7 @@ void handle_get_cwd(struct mg_connection *c, struct mg_http_message *hm) {
 
     // Receive the response from the client
     char buffer[1024] = {0};
-    if (receive_message_client(client->socket, buffer, sizeof(buffer)) < 0) {
+    if (receive_message_client(client->socket, buffer, sizeof(buffer), recv) < 0) {
         mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to receive response from client\"}");
         output_log("Failed receiving reply from client\n", LOG_DEBUG, LOG_TO_CONSOLE);
         free_command(&cmd); // Free dynamically allocated fields

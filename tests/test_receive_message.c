@@ -2,16 +2,17 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "../include/receive_message.h"
+#include <string.h>
 #include "../include/logging.h"
-#include <sys/stat.h>  // For mkdir
-#include <unistd.h>    // For rmdir
+#include "../include/receive_message.h"
+#include <sys/stat.h>
+#include <unistd.h>
 
-// Mock implementations
+// Mock client id from sock
 char *mock_generate_client_id_from_socket(int client_socket) {
     check_expected(client_socket);
     const char *mock_client_id = (const char *)mock();
-    return strdup(mock_client_id); // Dynamically allocate the string
+    return strdup(mock_client_id); // Return as string
 }
 
 Client *mock_find_client(ClientHashTable *hash_table, const char *client_id) {
@@ -27,8 +28,13 @@ ssize_t mock_recv(int sockfd, void *buf, size_t len, int flags) {
     check_expected(flags);
 
     const char *mock_message = (const char *)mock();
-    size_t message_len = strlen(mock_message);
+    if (mock_message == NULL) {
+        return -1; // Simulate error
+    } else if (strlen(mock_message) == 0) {
+        return 0; // Simulate server disconnection
+    }
 
+    size_t message_len = strlen(mock_message);
     if (len < message_len) {
         return -1; // Simulate failure if buffer is too small
     }
@@ -123,12 +129,64 @@ static void test_receive_message_server(void **state) {
     rmdir(test_dir);
 }
 
+// Test for successful message reception
+static void test_receive_message_client_success(void **state) {
+    (void)state; // Unused
+
+    char buffer[1024];
+
+    // Mock recv behavior
+    expect_value(mock_recv, sockfd, 1);
+    expect_value(mock_recv, len, sizeof(buffer) - 1);
+    expect_value(mock_recv, flags, 0);
+    will_return(mock_recv, "Hello, client!");
+
+    // Call the function with mock_recv
+    assert_int_equal(receive_message_client(1, buffer, sizeof(buffer), mock_recv), 0);
+    assert_string_equal(buffer, "Hello, client!");
+}
+
+// Test for server disconnection
+static void test_receive_message_client_disconnection(void **state) {
+    (void)state; // Unused
+
+    char buffer[1024];
+
+    // Mock recv behavior
+    expect_value(mock_recv, sockfd, 1);
+    expect_value(mock_recv, len, sizeof(buffer) - 1);
+    expect_value(mock_recv, flags, 0);
+    will_return(mock_recv, ""); // Simulate server disconnection
+
+    // Call the function with mock_recv
+    assert_int_equal(receive_message_client(1, buffer, sizeof(buffer), mock_recv), -1);
+}
+
+// Test for error during reception
+static void test_receive_message_client_error(void **state) {
+    (void)state; // Unused
+
+    char buffer[1024];
+
+    // Mock recv behavior
+    expect_value(mock_recv, sockfd, 1);
+    expect_value(mock_recv, len, sizeof(buffer) - 1);
+    expect_value(mock_recv, flags, 0);
+    will_return(mock_recv, NULL); // Simulate error
+
+    // Call the function with mock_recv
+    assert_int_equal(receive_message_client(1, buffer, sizeof(buffer), mock_recv), -1);
+}
+
 // Main function to run tests
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_initialize_client_log),
         cmocka_unit_test(test_write_to_client_log),
         cmocka_unit_test(test_receive_message_server),
+        cmocka_unit_test(test_receive_message_client_success),
+        cmocka_unit_test(test_receive_message_client_disconnection),
+        cmocka_unit_test(test_receive_message_client_error),
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

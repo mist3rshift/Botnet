@@ -119,8 +119,13 @@ int receive_message_server(
     return result;
 }
 
-int receive_message_client(int sockfd, char *buffer, size_t buffer_size) {
-    ssize_t bytes_received = recv(sockfd, buffer, buffer_size - 1, 0);
+int receive_message_client(
+    int sockfd,
+    char *buffer,
+    size_t buffer_size,
+    ssize_t (*recv_func)(int, void *, size_t, int) // Add recv_func argument
+) {
+    ssize_t bytes_received = recv_func(sockfd, buffer, buffer_size - 1, 0);
 
     if (bytes_received <= 0) {
         if (bytes_received == 0) {
