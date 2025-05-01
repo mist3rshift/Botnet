@@ -79,6 +79,9 @@ static void test_free_client_table(void** state) {
     //       (c1_before != NULL) ? "FOUND" : "NOT FOUND", 
     //       (c2_before != NULL) ? "FOUND" : "NOT FOUND");
 
+    assert_non_null(c1_before);
+    assert_non_null(c2_before);
+
     // Libérer la mémoire de la table
     free_client_table(&table);
 

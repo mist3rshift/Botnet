@@ -18,6 +18,11 @@ test:
   stage: test
   image: gcc:latest
   script:
+    - apt-get autoclean # Clean things we don't need
+    - apt-get update && apt-get install -y libcmocka-dev # Need to install mocka libs at this stage
+    # Specify the libmocka & other library locations
+    - export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+    - ldconfig # Update the linker cache
     - ./build/test_commands
     - ./build/test_hash_table
     - ./build/test_receive_message
