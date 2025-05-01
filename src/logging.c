@@ -18,7 +18,7 @@
 
 bool suppress_errors_flag = false;
 
-enum LogLevel current_log_level = LOG_LEVEL_INFO; // Default log level
+enum LogLevel current_log_level = LOG_LEVEL_ERROR; // Default log level
 
 void get_timestamp(char *buffer, size_t bufsize) {
     struct timeval tv;

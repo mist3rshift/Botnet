@@ -7,7 +7,7 @@ build:
   image: gcc:latest
   script:
     - apt-get autoclean
-    - apt-get update && apt-get install -y cmake clang
+    - apt-get update && apt-get install -y cmake clang libcunit1-dev libcunit1-doc libcmocka-dev
     - cmake -S . -B build
     - cmake --build build
   artifacts:

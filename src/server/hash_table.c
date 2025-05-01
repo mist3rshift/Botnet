@@ -86,11 +86,11 @@ void add_client(ClientHashTable *hash_table, const char *id, int socket, ClientS
 }
 
 // Rechercher un client dans la table de hachage
-Client *find_client(const ClientHashTable *hashTable, const char *id) {
-    unsigned int index = hash(id, hashTable->size);
-    Client *client = hashTable->table[index];
+Client *find_client(ClientHashTable *hash_table, const char *client_id) {
+    unsigned int index = hash(client_id, hash_table->size);
+    Client *client = hash_table->table[index];
     while (client != NULL) {
-        if (strcmp(client->id, id) == 0) {
+        if (strcmp(client->id, client_id) == 0) {
             return client;
         }
         client = client->next;
@@ -99,7 +99,7 @@ Client *find_client(const ClientHashTable *hashTable, const char *id) {
 }
 
 //Rechercher un client par socket dans la table de hachage
-Client *find_client_by_socket(const ClientHashTable *hashTable, const int socket) {
+Client *find_client_by_socket(ClientHashTable *hashTable, int socket) {
     for (size_t i = 0; i < hashTable->size; i++) {
         Client *client = hashTable->table[i];
         while (client != NULL) {

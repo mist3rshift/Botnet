@@ -184,7 +184,12 @@ void handle_client_connections(int serverSocket)
             if (client_socket > 0 && FD_ISSET(client_socket, &read_set))
             {
                 // Use receive_message_server to handle incoming data
-                if (receive_message_server(client_socket) < 0)
+                if (receive_message_server(
+                        client_socket,
+                        generate_client_id_from_socket,
+                        (Client *(*)(ClientHashTable *, const char *))find_client,
+                        recv // Pass the recv function as the fourth argument
+                    ) < 0)
                 {
                     output_log("Error handling message from socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
 
