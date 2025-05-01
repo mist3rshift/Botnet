@@ -162,7 +162,7 @@ void handle_client_connections(int serverSocket)
                     add_client(&hash_table, client_id, new_socket, LISTENING);
 
                     // Initialize the client log file
-                    if (initialize_client_log(new_socket) < 0)
+                    if (initialize_client_log(client_id) < 0)
                     {
                         output_log("handle_client_connections : Failed to initialize client log for socket %d\n", LOG_ERROR, LOG_TO_ALL, new_socket);
                         remove_client(&hash_table, client_id); // Remove the client from the hash table

@@ -168,7 +168,7 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
             buffer, // Params
             cmd.delay, 
             cmd.expected_exit_code);
-    write_to_client_log(client->socket, log_message);
+    write_to_client_log(client, log_message);
 
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
