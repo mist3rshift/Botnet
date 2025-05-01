@@ -45,6 +45,6 @@ int send_message(int sockfd, const char *message)
         return -1;
     }
 
-    output_log("Message sent to the receiver successfully!\n", LOG_INFO, LOG_TO_ALL);
+    output_log("Message sent to the receiver successfully!\n", LOG_DEBUG, LOG_TO_ALL);
     return 0;
 }

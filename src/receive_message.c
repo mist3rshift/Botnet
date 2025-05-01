@@ -13,6 +13,48 @@
 
 extern ClientHashTable hash_table;
 
+int initialize_client_log(int client_socket) {
+    output_log("Initializing client log for socket %d\n", LOG_DEBUG, LOG_TO_CONSOLE);
+
+    // Generate the client ID
+    char *client_id = generate_client_id_from_socket(client_socket);
+    if (client_id == NULL) {
+        output_log("Error: Could not generate client ID for socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
+        return -1; // Indicate failure
+    }
+
+    // Define the directory for client message files
+    const char *directory = "client_messages";
+
+    // Create the directory if it doesn't exist
+    struct stat st = {0};
+    if (stat(directory, &st) == -1) {
+        if (mkdir(directory, 0755) != 0) {
+            output_log("Error creating directory for client messages\n", LOG_ERROR, LOG_TO_ALL);
+            free(client_id);
+            return -1; // Indicate failure
+        }
+    }
+
+    // Construct the file path
+    char filepath[512];
+    snprintf(filepath, sizeof(filepath), "%s/%s_messages.txt", directory, client_id);
+
+    // Create the file if it doesn't exist
+    FILE *file = fopen(filepath, "a");
+    if (file) {
+        fclose(file);
+        output_log("Initialized log file for client %s\n", LOG_INFO, LOG_TO_ALL, client_id);
+    } else {
+        output_log("Error initializing log file for client %s\n", LOG_ERROR, LOG_TO_ALL, client_id);
+        free(client_id);
+        return -1; // Indicate failure
+    }
+
+    free(client_id);
+    return 0; // Indicate success
+}
+
 int write_to_client_log(int client_socket, char *message) {
     output_log("Getting client ID from socket\n", LOG_DEBUG, LOG_TO_CONSOLE);
 
@@ -69,6 +111,7 @@ int write_to_client_log(int client_socket, char *message) {
     output_log("OK - Wrote to client log file\n", LOG_DEBUG, LOG_TO_CONSOLE);
 
     free(client_id); // Free the dynamically allocated client ID
+    return 0;
 }
 
 int receive_message_server(int client_socket) {
@@ -81,7 +124,7 @@ int receive_message_server(int client_socket) {
 
     ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
-    output_log("Received message from network\n", LOG_DEBUG, LOG_TO_CONSOLE);
+    output_log("Received message: %s from network\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
 
     if (bytes_received <= 0) {
         if (bytes_received == 0) {

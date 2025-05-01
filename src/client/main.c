@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, server_port);
 
     // Send an initial message to the server
-    send_message(sockfd, "Hello!");
+    //send_message(sockfd, "Hello!");
 
     // Main loop to monitor and process incoming data
     while (1) {

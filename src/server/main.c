@@ -156,9 +156,21 @@ void handle_client_connections(int serverSocket)
                     if (client_id == NULL)
                     {
                         output_log("handle_client_connections : Error generating client ID\n", LOG_ERROR, LOG_TO_ALL);
+                        close(new_socket); // Close the socket if client ID generation fails
                         continue;
                     }
                     add_client(&hash_table, client_id, new_socket, LISTENING);
+
+                    // Initialize the client log file
+                    if (initialize_client_log(new_socket) < 0)
+                    {
+                        output_log("handle_client_connections : Failed to initialize client log for socket %d\n", LOG_ERROR, LOG_TO_ALL, new_socket);
+                        remove_client(&hash_table, client_id); // Remove the client from the hash table
+                        close(new_socket); // Close the socket
+                        free(client_id);
+                        continue;
+                    }
+
                     free(client_id);
                     break;
                 }
