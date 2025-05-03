@@ -76,6 +76,17 @@ void handle_list_bots(struct mg_connection *c, struct mg_http_message *hm) {
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response);
 }
 
+void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0}; // Declare bot_id
+    char cmd_id[64] = {0};
+    char program[256] = {0};
+    char params[256] = {0};
+    int delay = 0;
+    int expected_code = 0;
+    char delay_str[16] = {0};
+    char expected_code_str[16] = {0};
+}
+
 // Function to handle sending a command to a client
 void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
     char bot_id[256] = {0}; // Declare bot_id
@@ -450,6 +461,8 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
     if (ev == MG_EV_HTTP_MSG) {
         if (strncmp(hm->uri.buf, "/api/bots", hm->uri.len) == 0) {
             handle_list_bots(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/upload", hm->uri.len) == 0) {
+            handle_send_upload(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
             handle_send_command(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {

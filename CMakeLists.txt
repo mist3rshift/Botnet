@@ -79,3 +79,18 @@ add_executable(test_receive_message
 target_link_libraries(test_receive_message PRIVATE cmocka)
 target_include_directories(test_receive_message PRIVATE include)
 target_compile_definitions(test_receive_message PRIVATE CLIENT_MESSAGES_DIR="test_client_messages")
+# Add the test target
+add_executable(test_clients_utils
+        tests/test_client_utils.c
+        src/client/client_utils.c
+        src/client/client_errors.c
+        src/logging.c
+        src/commands.c
+        src/receive_message.c
+        src/send_message.c
+        src/server/hash_table.c
+        src/server/server_utils.c
+)
+target_link_libraries(test_clients_utils PRIVATE cmocka)
+target_include_directories(test_clients_utils PRIVATE include)
+target_compile_definitions(test_clients_utils PRIVATE CLIENT_MESSAGES_DIR="test_client_utils")
