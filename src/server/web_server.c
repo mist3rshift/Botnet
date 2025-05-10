@@ -10,7 +10,7 @@
 #include "../include/server/hash_table.h"
 #include "../include/commands.h"
 #include "../include/logging.h"
-#include "../include/web_server.h"
+#include "../include/server/web_server.h"
 #include "../include/server/server_constants.h"
 #include "../include/send_message.h"
 #include "../include/receive_message.h"
@@ -235,7 +235,7 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
     }
 
     // Respond with the number of targeted clients
-    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\",\"targeted_clients\":%zu}", targeted_clients);
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\",\"targeted_clients\":%lu}", targeted_clients);
 
     if (targeted_clients < num_clients) {
         output_log("Only %zu active clients were available to target (requested: %d)\n", LOG_DEBUG, LOG_TO_CONSOLE, targeted_clients, num_clients);

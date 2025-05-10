@@ -1,0 +1,387 @@
+#include <ncurses.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include "../../include/server/console.h"
+#include <curl/curl.h>
+#include "../lib/cJSON.h"
+
+// Helper function to write the HTTP response to a buffer
+static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t total_size = size * nmemb;
+    strncat((char *)userp, (char *)contents, total_size);
+    return total_size;
+}
+
+// Menu options
+#define NUM_OPTIONS 5
+const char *menu_options[NUM_OPTIONS] = {
+    "Display Bots",
+    "Request Upload from Bot",
+    "Send Command to Bot(s)",
+    "Get Botfile's Last Lines",
+    "Quit"
+};
+
+// ASCII art for "MALT"
+void print_ascii_art() {
+    mvprintw(0, 0, "   __  __    _    _   _______");
+    mvprintw(1, 0, "  |  \\/  |  / \\  | | |__   __|");
+    mvprintw(2, 0, "  | |\\/| | / _ \\ | |    | |");
+    mvprintw(3, 0, "  | |  | |/ ___ \\| |___ | |");
+    mvprintw(4, 0, "  |_|  |_/_/   \\_\\_____||_|");
+    mvprintw(5, 0, "-----------------------------------");
+}
+
+// Function to display the menu and handle user input
+void *interactive_menu() {
+    int highlight = 0; // Index of the currently highlighted option
+    int choice = -1;   // User's choice
+    int ch;
+
+    // Initialize ncurses
+    initscr();
+    clear();
+    noecho();
+    cbreak();
+    keypad(stdscr, TRUE); // Enable arrow keys
+    start_color();
+    init_pair(1, COLOR_BLUE, COLOR_BLACK); // Blue text on black background
+    init_pair(2, COLOR_WHITE, COLOR_BLACK); // White text on black background
+    init_pair(3, COLOR_GREEN, COLOR_BLACK); // Green for success
+    init_pair(4, COLOR_RED, COLOR_BLACK);   // Red for errors
+
+    while (1) {
+        clear();
+        print_ascii_art();
+
+        // Display the menu
+        for (int i = 0; i < NUM_OPTIONS; i++) {
+            if (i == highlight) {
+                attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected option in blue
+                mvprintw(i + 7, 0, ">");       // Add the ">" symbol
+                mvprintw(i + 7, 2, "%s", menu_options[i]);
+                attroff(A_BOLD | COLOR_PAIR(1));
+            } else {
+                attron(COLOR_PAIR(2)); // Normal options in white
+                mvprintw(i + 7, 0, " ");       // Clear the ">" symbol for non-selected options
+                mvprintw(i + 7, 2, "%s", menu_options[i]);
+                attroff(COLOR_PAIR(2));
+            }
+        }
+
+        // Get user input
+        ch = getch();
+        switch (ch) {
+            case KEY_UP:
+                highlight = (highlight - 1 + NUM_OPTIONS) % NUM_OPTIONS; // Move up
+                break;
+            case KEY_DOWN:
+                highlight = (highlight + 1) % NUM_OPTIONS; // Move down
+                break;
+            case '\n': // Enter key
+                choice = highlight;
+                break;
+        }
+
+        // If the user presses Enter, handle the selected option
+        if (choice != -1) {
+            clear();
+            if (choice == NUM_OPTIONS - 1) { // Quit option
+                mvprintw(0, 0, "Exiting CLI. Goodbye!");
+                refresh();
+                break;
+            } else {
+                mvprintw(0, 0, "You selected: %s", menu_options[choice]);
+                refresh();
+                // Call the corresponding function based on the choice
+                switch (choice) {
+                    case 0:
+                        display_bots();
+                        break;
+                    case 1:
+                        get_file_from_bot();
+                        break;
+                    case 2:
+                        send_command_to_bot();
+                        break;
+                    case 3:
+                        mvprintw(2, 0, "Fetching botfile's last lines...");
+                        // Add logic for "Get Botfile's Last Lines"
+                        break;
+                }
+                mvprintw(NUM_OPTIONS + 8, 0, "Press any key to return to the menu...");
+                getch();
+            }
+            choice = -1; // Reset choice
+        }
+    }
+
+    // End ncurses mode
+    endwin();
+}
+
+void display_bots() {
+    mvprintw(2, 0, "Displaying bots...");
+    refresh();
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        mvprintw(4, 0, "Failed to initialize CURL.");
+        refresh();
+        return;
+    }
+
+    char response[4096] = {0}; // Buffer to store the HTTP response
+
+    // Set up the CURL request
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        mvprintw(4, 0, "Failed to fetch bots: %s", curl_easy_strerror(res));
+        refresh();
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    curl_easy_cleanup(curl);
+
+    // Parse the JSON response using cJSON
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json) {
+        mvprintw(4, 0, "Failed to parse JSON response.");
+        refresh();
+        return;
+    }
+
+    // Ensure the response is an array
+    if (!cJSON_IsArray(parsed_json)) {
+        mvprintw(4, 0, "Unexpected response format. Expected an array.");
+        refresh();
+        cJSON_Delete(parsed_json); // Free the JSON object
+        return;
+    }
+
+    // Print the table header
+    mvprintw(6, 0, "%-20s %-20s %-20s", "Socket", "ID", "State");
+    mvprintw(7, 0, "------------------------------------------------------------");
+
+    // Iterate through the array and print each bot's details
+    int row = 8;
+    cJSON *bot = NULL;
+    cJSON_ArrayForEach(bot, parsed_json) {
+        cJSON *socket_obj = cJSON_GetObjectItem(bot, "socket");
+        cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+        cJSON *state_obj = cJSON_GetObjectItem(bot, "status");
+
+        if (cJSON_IsString(socket_obj) && cJSON_IsString(id_obj) && cJSON_IsString(state_obj)) {
+            mvprintw(row++, 0, "%-20s %-20s %-20s",
+                     socket_obj->valuestring,
+                     id_obj->valuestring,
+                     state_obj->valuestring);
+        } else {
+            mvprintw(row++, 0, "Failed to parse bot details.");
+        }
+    }
+
+    // Free the JSON object
+    cJSON_Delete(parsed_json);
+    refresh();
+}
+
+void get_file_from_bot() {
+    char bot_id[256];
+    char file_name[256];
+    char post_data[512];
+    char response[4096] = {0}; // Buffer to store the HTTP response
+
+    // Prompt the user for the bot ID
+    mvprintw(2, 0, "Enter Bot ID: ");
+    echo();
+    getnstr(bot_id, sizeof(bot_id) - 1);
+    noecho();
+
+    // Validate the bot ID
+    if (strlen(bot_id) == 0) {
+        mvprintw(4, 0, "Bot ID cannot be empty.");
+        refresh();
+        return;
+    }
+
+    // Prompt the user for the file name
+    mvprintw(3, 0, "Enter File Name: ");
+    echo();
+    getnstr(file_name, sizeof(file_name) - 1);
+    noecho();
+
+    // Validate the file name
+    if (strlen(file_name) == 0) {
+        mvprintw(5, 0, "File Name cannot be empty.");
+        refresh();
+        return;
+    }
+
+    // Construct the POST data
+    snprintf(post_data, sizeof(post_data), "bot_id=%s&file_name=%s", bot_id, file_name);
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        mvprintw(6, 0, "Failed to initialize CURL.");
+        refresh();
+        return;
+    }
+
+    // Set up the CURL request
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/upload");
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        mvprintw(7, 0, "Failed to send upload request: %s", curl_easy_strerror(res));
+        refresh();
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    curl_easy_cleanup(curl);
+
+    // Parse the JSON response using cJSON
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json) {
+        mvprintw(8, 0, "Failed to parse JSON response.");
+        refresh();
+        return;
+    }
+
+    // Check for "status" or "error" in the response
+    cJSON *status_obj = cJSON_GetObjectItem(parsed_json, "status");
+    cJSON *error_obj = cJSON_GetObjectItem(parsed_json, "error");
+
+    if (cJSON_IsString(status_obj)) {
+        mvprintw(9, 0, "Success!");
+    } else if (cJSON_IsString(error_obj)) {
+        mvprintw(9, 0, "Error: %s", error_obj->valuestring);
+    } else {
+        mvprintw(9, 0, "Unexpected response format.");
+    }
+
+    // Free the JSON object
+    cJSON_Delete(parsed_json);
+    refresh();
+}
+
+void send_command_to_bot() {
+    char bot_ids[1024] = {0};
+    char num_clients_str[16] = {0};
+    char cmd_id[64] = {0};
+    char program[256] = {0};
+    char params[256] = {0};
+    char delay_str[16] = {0};
+    char expected_code_str[16] = {0};
+    char post_data[2048];
+    char response[4096] = {0}; // Buffer to store the HTTP response
+
+    // Prompt the user for bot IDs
+    mvprintw(2, 0, "Enter Bot IDs (comma-separated, or leave empty to target random clients): ");
+    echo();
+    getnstr(bot_ids, sizeof(bot_ids) - 1);
+    noecho();
+
+    // Prompt the user for the number of clients to target
+    mvprintw(3, 0, "Enter the number of clients to target (leave empty if using bot IDs): ");
+    echo();
+    getnstr(num_clients_str, sizeof(num_clients_str) - 1);
+    noecho();
+
+    // Prompt the user for the command ID
+    mvprintw(4, 0, "Enter Command ID: ");
+    echo();
+    getnstr(cmd_id, sizeof(cmd_id) - 1);
+    noecho();
+
+    // Prompt the user for the program to execute
+    mvprintw(5, 0, "Enter Program to Execute: ");
+    echo();
+    getnstr(program, sizeof(program) - 1);
+    noecho();
+
+    // Prompt the user for parameters
+    mvprintw(6, 0, "Enter Parameters (space-separated, or leave empty): ");
+    echo();
+    getnstr(params, sizeof(params) - 1);
+    noecho();
+
+    // Prompt the user for the delay
+    mvprintw(7, 0, "Enter Delay (in seconds, or leave empty for 0): ");
+    echo();
+    getnstr(delay_str, sizeof(delay_str) - 1);
+    noecho();
+
+    // Prompt the user for the expected exit code
+    mvprintw(8, 0, "Enter Expected Exit Code (or leave empty for 0): ");
+    echo();
+    getnstr(expected_code_str, sizeof(expected_code_str) - 1);
+    noecho();
+
+    // Construct the POST data
+    snprintf(post_data, sizeof(post_data),
+             "bot_ids=%s&num_clients=%s&cmd_id=%s&program=%s&params=%s&delay=%s&expected_code=%s",
+             bot_ids, num_clients_str, cmd_id, program, params, delay_str, expected_code_str);
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        mvprintw(9, 0, "Failed to initialize CURL.");
+        refresh();
+        return;
+    }
+
+    // Set up the CURL request
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/command");
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        mvprintw(10, 0, "Failed to send command: %s", curl_easy_strerror(res));
+        refresh();
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    curl_easy_cleanup(curl);
+
+    // Parse the JSON response using cJSON
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json) {
+        mvprintw(11, 0, "Failed to parse JSON response.");
+        refresh();
+        return;
+    }
+
+    // Check for "status" or "error" in the response
+    cJSON *status_obj = cJSON_GetObjectItem(parsed_json, "status");
+    cJSON *error_obj = cJSON_GetObjectItem(parsed_json, "error");
+    cJSON *targeted_clients_obj = cJSON_GetObjectItem(parsed_json, "targeted_clients");
+
+    if (cJSON_IsString(status_obj)) {
+        mvprintw(12, 0, "Success: %s", status_obj->valuestring);
+        if (cJSON_IsNumber(targeted_clients_obj)) {
+            mvprintw(13, 0, "Targeted Clients: %d", targeted_clients_obj->valueint);
+        }
+    } else if (cJSON_IsString(error_obj)) {
+        mvprintw(12, 0, "Error: %s", error_obj->valuestring);
+    } else {
+        mvprintw(12, 0, "Unexpected response format.");
+    }
+
+    // Free the JSON object
+    cJSON_Delete(parsed_json);
+    refresh();
+}

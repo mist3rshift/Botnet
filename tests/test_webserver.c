@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "../include/web_server.h"
+#include "../include/server/web_server.h"
 #include "../include/server/server_constants.h"
 #include "../include/logging.h"
 #include "../lib/mongoose.h"
