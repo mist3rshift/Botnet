@@ -1,0 +1,48 @@
+<div id="modal-section">
+    <div id="command-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Send Command</h2>
+            <form id="command-form">
+                <!-- Client Selection -->
+                <div class="form-group">
+                    <label for="client-selection">Target Clients:</label>
+                    <div id="target-client-method-section">
+                        <select id="client-selection">
+                            <option value="by-number">By Number of Clients</option>
+                            <option value="by-id">By ID List</option>
+                        </select>
+                        <input type="number" id="num-clients-input" placeholder="Number of clients" />
+                        <input type="text" id="client-ids-input" placeholder="Comma-separated IDs (e.g., bot1,bot2)" style="display: none;"/>
+                    </div>
+                </div>
+
+                <!-- Program and Parameters -->
+                <div class="form-group">
+                    <label for="program-input">Program and Parameters:</label>
+                    <div id="target-client-command-selection">
+                        <input type="text" id="program-input" placeholder="Program (e.g., ls)" />
+                        <input type="text" id="params-input" placeholder="Parameters (e.g., -l)" />
+                    </div>
+                    
+                </div>
+
+                <!-- Collapsible Optional Inputs -->
+                <div class="form-group">
+                    <button type="button" id="toggle-optional" class="toggle-button">▼ Show Optional Inputs</button>
+                    <div id="optional-inputs" style="display: none;">
+                        <label for="cmd-id-input">Optional Command ID:</label>
+                        <input type="text" id="cmd-id-input" placeholder="Command ID" />
+                        <label for="delay-input">Optional Delay (ms):</label>
+                        <input type="number" id="delay-input" placeholder="Delay" />
+                        <label for="expected-code-input">Optional Exit Code:</label>
+                        <input type="number" id="expected-code-input" placeholder="Exit Code" />
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit">Send Command</button>
+            </form>
+        </div>
+    </div>
+</div>

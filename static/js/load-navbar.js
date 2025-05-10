@@ -1,6 +1,6 @@
 // Dynamically load the navbar
 async function loadNavbar() {
-    const response = await fetch('/static/html/navbar.html');
+    const response = await fetch('/static/html/partial.navbar.html');
     if (response.ok) {
         const navbarHtml = await response.text();
         document.getElementById('navbar').innerHTML = navbarHtml;

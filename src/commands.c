@@ -88,7 +88,10 @@ int send_command(int sockfd, const Command *cmd) {
 
     // Serialize the Command structure
     char buffer[1024];
+    output_log("Serializing command...\n", LOG_DEBUG, LOG_TO_CONSOLE);
     serialize_command(cmd, buffer, sizeof(buffer));
+
+    output_log("Serialized command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
 
     // Send the serialized command to the client
     ssize_t bytes_sent = send(sockfd, buffer, strlen(buffer), 0);
@@ -98,7 +101,7 @@ int send_command(int sockfd, const Command *cmd) {
         return -1;
     }
 
-    output_log("Command sent successfully: %s\n", LOG_INFO, LOG_TO_ALL, buffer);
+    output_log("Successfully sent command to socket id %d\n", LOG_DEBUG, LOG_TO_CONSOLE, sockfd);
     return 0;
 }
 
@@ -185,6 +188,7 @@ int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size)
 
 void serialize_command(const Command *cmd, char *buffer, size_t buffer_size) {
     if (!cmd || !buffer) return;
+
     // Serialize the params into a single space-separated string
     char params_buffer[512] = {0};
     if (cmd->params) {

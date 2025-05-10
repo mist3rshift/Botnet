@@ -59,22 +59,27 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
+        // Split the command into program and parameters
+        const commandParts = command.split(" ");
+        const program = commandParts[0]; // First word is the program
+        const params = commandParts.slice(1); // Remaining words are parameters
+
         const payload = {
-            bot_id: botId,
+            bot_ids: botId, // Use "bot_ids" to match the server's expected parameter
             cmd_id: "0",
-            program: command.split(" ")[0], // First word is the program
-            params: command.split(" ").slice(1).join(" "), // Remaining words are parameters
+            program: program,
+            params: params.join(" "), // Send params as a space-separated string
             delay: 0,
-            expected_exit_code: 0,
+            expected_code: 0,
         };
 
         try {
             const response = await fetch('/api/command', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/x-www-form-urlencoded', // Use URL-encoded format
                 },
-                body: `bot_id=${encodeURIComponent(payload.bot_id)}&cmd_id=${encodeURIComponent(payload.cmd_id)}&program=${encodeURIComponent(payload.program)}&params=${encodeURIComponent(payload.params)}&delay=${encodeURIComponent(payload.delay)}&expected_code=${encodeURIComponent(payload.expected_exit_code)}`,
+                body: new URLSearchParams(payload).toString(), // Convert payload to URL-encoded string
             });
 
             if (response.ok) {
