@@ -106,8 +106,7 @@ void *interactive_menu() {
                         send_command_to_bot();
                         break;
                     case 3:
-                        mvprintw(2, 0, "Fetching botfile's last lines...");
-                        // Add logic for "Get Botfile's Last Lines"
+                        get_bot_file();
                         break;
                 }
                 mvprintw(NUM_OPTIONS + 8, 0, "Press any key to return to the menu...");
@@ -379,6 +378,111 @@ void send_command_to_bot() {
         mvprintw(12, 0, "Error: %s", error_obj->valuestring);
     } else {
         mvprintw(12, 0, "Unexpected response format.");
+    }
+
+    // Free the JSON object
+    cJSON_Delete(parsed_json);
+    refresh();
+}
+
+void get_bot_file() {
+    char bot_id[256] = {0};
+    char lines_str[16] = {0};
+    char offset_str[16] = {0};
+    char query_url[512];
+    char response[4096] = {0}; // Buffer to store the HTTP response
+
+    // Prompt the user for the bot ID
+    mvprintw(2, 0, "Enter Bot ID (<ip>:<port>): ");
+    echo();
+    getnstr(bot_id, sizeof(bot_id) - 1);
+    noecho();
+
+    // Validate the bot ID
+    if (strlen(bot_id) == 0) {
+        mvprintw(4, 0, "Bot ID cannot be empty.");
+        refresh();
+        return;
+    }
+
+    // Prompt the user for the number of lines to fetch
+    mvprintw(3, 0, "Enter the number of lines to fetch: ");
+    echo();
+    getnstr(lines_str, sizeof(lines_str) - 1);
+    noecho();
+
+    // Validate the number of lines
+    if (strlen(lines_str) == 0 || atoi(lines_str) <= 0) {
+        mvprintw(5, 0, "Invalid number of lines. Please enter a positive integer.");
+        refresh();
+        return;
+    }
+
+    // Prompt the user for the offset
+    mvprintw(4, 0, "Enter the offset (number of most recent lines to ignore): ");
+    echo();
+    getnstr(offset_str, sizeof(offset_str) - 1);
+    noecho();
+
+    // Validate the offset
+    if (strlen(offset_str) == 0 || atoi(offset_str) < 0) {
+        mvprintw(6, 0, "Invalid offset. Please enter a non-negative integer.");
+        refresh();
+        return;
+    }
+
+    // Construct the query URL
+    snprintf(query_url, sizeof(query_url),
+             "http://127.0.0.1:8000/api/botfile?id=%s&lines=%s&offset=%s",
+             bot_id, lines_str, offset_str);
+
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        mvprintw(7, 0, "Failed to initialize CURL.");
+        refresh();
+        return;
+    }
+
+    // Set up the CURL request
+    curl_easy_setopt(curl, CURLOPT_URL, query_url);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        mvprintw(8, 0, "Failed to fetch bot file: %s", curl_easy_strerror(res));
+        refresh();
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    curl_easy_cleanup(curl);
+
+    // Parse the JSON response using cJSON
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json) {
+        mvprintw(9, 0, "Failed to parse JSON response.");
+        refresh();
+        return;
+    }
+
+    // Extract the "lines" array from the response
+    cJSON *lines_obj = cJSON_GetObjectItem(parsed_json, "lines");
+    if (!cJSON_IsArray(lines_obj)) {
+        mvprintw(10, 0, "Unexpected response format. 'lines' array not found.");
+        cJSON_Delete(parsed_json);
+        refresh();
+        return;
+    }
+
+    // Display the lines in the CLI
+    mvprintw(10, 0, "Bot file content:");
+    int row = 11;
+    cJSON *line = NULL;
+    cJSON_ArrayForEach(line, lines_obj) {
+        if (cJSON_IsString(line)) {
+            mvprintw(row++, 0, "%s", line->valuestring);
+        }
     }
 
     // Free the JSON object

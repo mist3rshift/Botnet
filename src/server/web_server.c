@@ -396,46 +396,34 @@ void handle_get_bot_file(struct mg_connection *c, struct mg_http_message *hm) {
     int start = (total_lines > lines + offset) ? total_lines - lines - offset : 0;
     int end = (total_lines > offset) ? total_lines - offset : 0;
 
-    // Dynamically allocate the response buffer
-    size_t response_size = 8192; // Start with 8 KB response size
-    char *response = malloc(response_size); // use malloc, not a char buffer. OVERFLOW DANGER OTHERWISE
-    if (response == NULL) {
-        free(lines_buffer);
-        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Memory allocation failed\"}");
-        return;
-    }
-    response[0] = '\0'; // Initialize the response buffer
+    // Construct the JSON response
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON *lines_array = cJSON_CreateArray();
 
-    // Construct the response
     for (int i = start; i < end; i++) {
         int index = i % (lines + offset);
         if (lines_buffer[index] != NULL) {
-            size_t line_length = strlen(lines_buffer[index]);
-            size_t current_length = strlen(response);
-
-            // Is buffer too small??
-            if (current_length + line_length + 1 >= response_size) {
-                response_size *= 2; // Increase buffer size -> Prevent buffer overflow if return file is "huge"
-                char *new_response = realloc(response, response_size);
-                if (new_response == NULL) {
-                    free(response);
-                    free(lines_buffer);
-                    mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Memory allocation failed\"}");
-                    return;
-                }
-                response = new_response;
+            if (strlen(lines_buffer[index]) > 0) { // Ensure the string is not empty
+                cJSON_AddItemToArray(lines_array, cJSON_CreateString(lines_buffer[index]));
             }
-
-            // Append the line to the response
-            strncat(response, lines_buffer[index], response_size - current_length - 1);
             free(lines_buffer[index]); // Free the line after using it
+            lines_buffer[index] = NULL; // Avoid dangling pointer
         }
     }
-    free(lines_buffer);
 
-    // Send the response
-    mg_http_reply(c, 200, "Content-Type: text/plain\r\n", "%s", response);
-    free(response);
+    free(lines_buffer); // Free the lines_buffer array
+
+    cJSON_AddItemToObject(response_json, "lines", lines_array);
+
+    // Convert the JSON object to a string
+    char *response_str = cJSON_PrintUnformatted(response_json);
+
+    // Send the JSON response
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+
+    // Free resources
+    cJSON_Delete(response_json);
+    free(response_str);
 }
 
 void handle_get_cwd(struct mg_connection *c, struct mg_http_message *hm) {

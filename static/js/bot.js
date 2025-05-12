@@ -125,34 +125,41 @@ async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
         const currentOffset = isRefresh ? refreshOffset : offset;
         const response = await fetch(`/api/botfile?id=${botId}&lines=${linesPerPage}&offset=${currentOffset}`);
         if (response.ok) {
-            const data = await response.text();
+            const data = await response.json(); // Parse the JSON response
 
-            if (prepend) {
-                // Calculate the starting line number for prepended lines
-                const startingLineNumber = offset - linesPerPage + 1;
-                // Prepend new lines to the top
-                fileContentElement.innerHTML =
-                    formatLogsWithLineNumbers(data, startingLineNumber) + fileContentElement.innerHTML;
-            } else if (isRefresh) {
-                // Replace only the most recent lines during refresh
-                const preservedContent = Array.from(fileContentElement.querySelectorAll('.log-line'))
-                    .slice(0, -linesPerPage)
-                    .map(line => line.outerHTML)
-                    .join('');
-                const existingLines = fileContentElement.querySelectorAll('.log-line').length;
-                fileContentElement.innerHTML =
-                    preservedContent + formatLogsWithLineNumbers(data, existingLines - linesPerPage + 1);
+            if (data.lines && Array.isArray(data.lines)) {
+                const logs = data.lines.join('\n'); // Combine the lines into a single string
+
+                if (prepend) {
+                    // Calculate the starting line number for prepended lines
+                    const startingLineNumber = offset - linesPerPage + 1;
+                    // Prepend new lines to the top
+                    fileContentElement.innerHTML =
+                        formatLogsWithLineNumbers(logs, startingLineNumber) + fileContentElement.innerHTML;
+                } else if (isRefresh) {
+                    // Replace only the most recent lines during refresh
+                    const preservedContent = Array.from(fileContentElement.querySelectorAll('.log-line'))
+                        .slice(0, -linesPerPage)
+                        .map(line => line.outerHTML)
+                        .join('');
+                    const existingLines = fileContentElement.querySelectorAll('.log-line').length;
+                    fileContentElement.innerHTML =
+                        preservedContent + formatLogsWithLineNumbers(logs, existingLines - linesPerPage + 1);
+                } else {
+                    // Replace content for initial load
+                    fileContentElement.innerHTML = formatLogsWithLineNumbers(logs, 1);
+                }
             } else {
-                // Replace content for initial load
-                fileContentElement.innerHTML = formatLogsWithLineNumbers(data, 1);
+                showNotification('No logs found in the response.', 'error');
+                fileContentElement.textContent = 'No logs found.';
             }
         } else {
             const error = await response.json();
-            showNotification(`Error getting logs : ${error.error}.`, 'error');
+            showNotification(`Error getting logs: ${error.error}.`, 'error');
             fileContentElement.textContent = `Error: ${error.error}`;
         }
     } catch (err) {
-        showNotification(`Failed to fetch bot logs : ${err.message}.`, 'error');
+        showNotification(`Failed to fetch bot logs: ${err.message}.`, 'error');
         fileContentElement.textContent = `Error: Failed to fetch bot logs. ${err.message}`;
     }
 }

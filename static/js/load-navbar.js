@@ -32,21 +32,31 @@ function showNotification(message, type) {
 
 // Dynamically load the navbar
 async function loadNavbar() {
-    const response = await fetch('/static/html/partial.navbar.html');
-    if (response.ok) {
-        const navbarHtml = await response.text();
-        document.getElementById('navbar').innerHTML = navbarHtml;
-    } else {
-        // Log the error to the console for debugging
-        console.error('Failed to load navbar:', response.status);
+    try {
+        const response = await fetch('/static/html/partial.navbar.html');
+        if (!response.ok) {
+            console.error('Failed to load navbar:', response.status, response.statusText);
+            showNotification('Failed to load the navbar. Please try refreshing the page.', 'error');
+            return;
+        }
 
-        // Display a notification to the user
+        const navbarHtml = await response.text();
+        console.log('Loaded navbar HTML:', navbarHtml);
+
+        const navbarElement = document.getElementById('navbar');
+        if (navbarElement) {
+            navbarElement.innerHTML = navbarHtml;
+        } else {
+            console.error('Navbar container not found in the DOM.');
+        }
+    } catch (error) {
+        console.error('Error loading navbar:', error);
         showNotification('Failed to load the navbar. Please try refreshing the page.', 'error');
     }
 }
 
-// Call the function to load the navbar
-window.onload = async () => {
-    await loadNotificationSystem(); // Load the notification system
-    loadNavbar();
-}
+// Load the navbar and notification system when the DOM is fully loaded
+document.addEventListener("DOMContentLoaded", async () => {
+    await loadNotificationSystem();
+    await loadNavbar();
+});
