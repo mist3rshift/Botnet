@@ -5,6 +5,11 @@
 #include "../../include/server/console.h"
 #include <curl/curl.h>
 #include "../lib/cJSON.h"
+#include <stdarg.h> // For va_list, va_start, va_end
+#include <unistd.h>
+
+// Global variable to track the number of lines used by the last print_wrapped call
+int line_offset = 0;
 
 // Helper function to write the HTTP response to a buffer
 static size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -25,12 +30,33 @@ const char *menu_options[NUM_OPTIONS] = {
 
 // ASCII art for "MALT"
 void print_ascii_art() {
-    mvprintw(0, 0, "   __  __    _    _   _______");
-    mvprintw(1, 0, "  |  \\/  |  / \\  | | |__   __|");
-    mvprintw(2, 0, "  | |\\/| | / _ \\ | |    | |");
-    mvprintw(3, 0, "  | |  | |/ ___ \\| |___ | |");
-    mvprintw(4, 0, "  |_|  |_/_/   \\_\\_____||_|");
-    mvprintw(5, 0, "-----------------------------------");
+    print_wrapped(0, 0, "   __  __    _    _   _______");
+    print_wrapped(1, 0, "  |  \\/  |  / \\  | | |__   __|");
+    print_wrapped(2, 0, "  | |\\/| | / _ \\ | |    | |");
+    print_wrapped(3, 0, "  | |  | |/ ___ \\| |___ | |");
+    print_wrapped(4, 0, "  |_|  |_/_/   \\_\\_____||_|");
+    print_wrapped(5, 0, "-----------------------------------");
+}
+
+// Function to calculate the number of lines a user's input will occupy
+int calculate_input_lines(const char *input, int start_col, int max_x) {
+    int input_len = strlen(input);
+    int lines_used = 0;
+    int current_col = start_col;
+
+    for (int i = 0; i < input_len; i++) {
+        if (current_col >= max_x) {
+            lines_used++;
+            current_col = 0;
+        }
+        current_col++;
+    }
+
+    if (current_col > 0) {
+        lines_used++; // Account for the last line
+    }
+
+    return lines_used;
 }
 
 // Function to display the menu and handle user input
@@ -56,18 +82,20 @@ void *interactive_menu() {
         print_ascii_art();
 
         // Display the menu
+        int current_row = 7; // Start at row 7
         for (int i = 0; i < NUM_OPTIONS; i++) {
             if (i == highlight) {
                 attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected option in blue
-                mvprintw(i + 7, 0, ">");       // Add the ">" symbol
-                mvprintw(i + 7, 2, "%s", menu_options[i]);
+                mvprintw(current_row, 0, ">"); // Add the ">" symbol
+                mvprintw(current_row, 2, "%s", menu_options[i]);
                 attroff(A_BOLD | COLOR_PAIR(1));
             } else {
                 attron(COLOR_PAIR(2)); // Normal options in white
-                mvprintw(i + 7, 0, " ");       // Clear the ">" symbol for non-selected options
-                mvprintw(i + 7, 2, "%s", menu_options[i]);
+                mvprintw(current_row, 0, " "); // Clear the ">" symbol for non-selected options
+                mvprintw(current_row, 2, "%s", menu_options[i]);
                 attroff(COLOR_PAIR(2));
             }
+            current_row++; // Move to the next row
         }
 
         // Get user input
@@ -88,11 +116,13 @@ void *interactive_menu() {
         if (choice != -1) {
             clear();
             if (choice == NUM_OPTIONS - 1) { // Quit option
-                mvprintw(0, 0, "Exiting CLI. Goodbye!");
+                attron(A_BOLD | COLOR_PAIR(4));
+                print_wrapped(0, 0, "Exiting CLI. Goodbye!");
+                attroff(A_BOLD | COLOR_PAIR(4));
                 refresh();
                 break;
             } else {
-                mvprintw(0, 0, "You selected: %s", menu_options[choice]);
+                print_wrapped(0, 0, "%s", menu_options[choice]);
                 refresh();
                 // Call the corresponding function based on the choice
                 switch (choice) {
@@ -109,7 +139,7 @@ void *interactive_menu() {
                         get_bot_file();
                         break;
                 }
-                mvprintw(NUM_OPTIONS + 8, 0, "Press any key to return to the menu...");
+                print_wrapped(NUM_OPTIONS + 8, 0, "Press any key to return to the menu...");
                 getch();
             }
             choice = -1; // Reset choice
@@ -121,11 +151,11 @@ void *interactive_menu() {
 }
 
 void display_bots() {
-    mvprintw(2, 0, "Displaying bots...");
-    refresh();
     CURL *curl = curl_easy_init();
     if (!curl) {
-        mvprintw(4, 0, "Failed to initialize CURL.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Failed to initialize CURL.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
@@ -139,7 +169,9 @@ void display_bots() {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        mvprintw(4, 0, "Failed to fetch bots: %s", curl_easy_strerror(res));
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Failed to fetch bots: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         curl_easy_cleanup(curl);
         return;
@@ -150,40 +182,58 @@ void display_bots() {
     // Parse the JSON response using cJSON
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json) {
-        mvprintw(4, 0, "Failed to parse JSON response.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Failed to parse JSON response.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
 
     // Ensure the response is an array
     if (!cJSON_IsArray(parsed_json)) {
-        mvprintw(4, 0, "Unexpected response format. Expected an array.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Unexpected response format. Expected an array.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         cJSON_Delete(parsed_json); // Free the JSON object
         return;
     }
 
+    int current_row = 6; // Start at row 6
+
     // Print the table header
-    mvprintw(6, 0, "%-20s %-20s %-20s", "Socket", "ID", "State");
-    mvprintw(7, 0, "------------------------------------------------------------");
+    print_wrapped(current_row, 0, "%-20s %-20s %-20s", "Socket", "ID", "State");
+    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(current_row, 0, "------------------------------------------------------------");
+    current_row += line_offset; // Adjust for the lines used
 
     // Iterate through the array and print each bot's details
-    int row = 8;
     cJSON *bot = NULL;
+    int num_bots = 0;
     cJSON_ArrayForEach(bot, parsed_json) {
         cJSON *socket_obj = cJSON_GetObjectItem(bot, "socket");
         cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
         cJSON *state_obj = cJSON_GetObjectItem(bot, "status");
 
         if (cJSON_IsString(socket_obj) && cJSON_IsString(id_obj) && cJSON_IsString(state_obj)) {
-            mvprintw(row++, 0, "%-20s %-20s %-20s",
+            print_wrapped(current_row++, 0, "%-20s %-20s %-20s",
                      socket_obj->valuestring,
                      id_obj->valuestring,
                      state_obj->valuestring);
         } else {
-            mvprintw(row++, 0, "Failed to parse bot details.");
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(current_row++, 0, "Failed to parse bot details.");
+            attroff(A_BOLD | COLOR_PAIR(4));
         }
+
+        num_bots++;
     }
+
+    if (num_bots == 0) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(current_row++, 0, "No bots are connected!");
+            attroff(A_BOLD | COLOR_PAIR(4));
+        }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
@@ -197,27 +247,31 @@ void get_file_from_bot() {
     char response[4096] = {0}; // Buffer to store the HTTP response
 
     // Prompt the user for the bot ID
-    mvprintw(2, 0, "Enter Bot ID: ");
+    print_wrapped(2, 0, "Enter Bot ID [<IP>:<PORT>]: ");
     echo();
     getnstr(bot_id, sizeof(bot_id) - 1);
     noecho();
 
     // Validate the bot ID
     if (strlen(bot_id) == 0) {
-        mvprintw(4, 0, "Bot ID cannot be empty.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Bot ID cannot be empty.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
 
     // Prompt the user for the file name
-    mvprintw(3, 0, "Enter File Name: ");
+    print_wrapped(3, 0, "Enter File Name [ex: main.log]: ");
     echo();
     getnstr(file_name, sizeof(file_name) - 1);
     noecho();
 
     // Validate the file name
     if (strlen(file_name) == 0) {
-        mvprintw(5, 0, "File Name cannot be empty.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(5, 0, "File Name cannot be empty.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
@@ -227,7 +281,9 @@ void get_file_from_bot() {
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        mvprintw(6, 0, "Failed to initialize CURL.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(6, 0, "Failed to initialize CURL.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
@@ -241,7 +297,9 @@ void get_file_from_bot() {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        mvprintw(7, 0, "Failed to send upload request: %s", curl_easy_strerror(res));
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(7, 0, "Failed to send upload request: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         curl_easy_cleanup(curl);
         return;
@@ -252,7 +310,9 @@ void get_file_from_bot() {
     // Parse the JSON response using cJSON
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json) {
-        mvprintw(8, 0, "Failed to parse JSON response.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(8, 0, "Failed to parse JSON response.");
+        attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
@@ -262,11 +322,17 @@ void get_file_from_bot() {
     cJSON *error_obj = cJSON_GetObjectItem(parsed_json, "error");
 
     if (cJSON_IsString(status_obj)) {
-        mvprintw(9, 0, "Success!");
+        attron(A_BOLD | COLOR_PAIR(3));
+        print_wrapped(9, 0, "Success!");
+        attroff(A_BOLD | COLOR_PAIR(3));
     } else if (cJSON_IsString(error_obj)) {
-        mvprintw(9, 0, "Error: %s", error_obj->valuestring);
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(9, 0, "Error: %s", error_obj->valuestring);
+        attroff(A_BOLD | COLOR_PAIR(4));
     } else {
-        mvprintw(9, 0, "Unexpected response format.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(9, 0, "Unexpected response format.");
+        attroff(A_BOLD | COLOR_PAIR(4));
     }
 
     // Free the JSON object
@@ -285,44 +351,53 @@ void send_command_to_bot() {
     char post_data[2048];
     char response[4096] = {0}; // Buffer to store the HTTP response
 
+    int current_row = 2; // Start at row 2
+
     // Prompt the user for bot IDs
-    mvprintw(2, 0, "Enter Bot IDs (comma-separated, or leave empty to target random clients): ");
+    print_wrapped(current_row, 0, "Enter Bot IDs (comma-separated, or leave empty to target random clients): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(bot_ids, sizeof(bot_ids) - 1);
     noecho();
 
     // Prompt the user for the number of clients to target
-    mvprintw(3, 0, "Enter the number of clients to target (leave empty if using bot IDs): ");
+    print_wrapped(current_row, 0, "Enter the number of clients to target (leave empty if using bot IDs): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(num_clients_str, sizeof(num_clients_str) - 1);
     noecho();
 
     // Prompt the user for the command ID
-    mvprintw(4, 0, "Enter Command ID: ");
+    print_wrapped(current_row, 0, "Enter Command ID: ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(cmd_id, sizeof(cmd_id) - 1);
     noecho();
 
     // Prompt the user for the program to execute
-    mvprintw(5, 0, "Enter Program to Execute: ");
+    print_wrapped(current_row, 0, "Enter Program to Execute: ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(program, sizeof(program) - 1);
     noecho();
 
     // Prompt the user for parameters
-    mvprintw(6, 0, "Enter Parameters (space-separated, or leave empty): ");
+    print_wrapped(current_row, 0, "Enter Parameters (space-separated, or leave empty): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(params, sizeof(params) - 1);
     noecho();
 
     // Prompt the user for the delay
-    mvprintw(7, 0, "Enter Delay (in seconds, or leave empty for 0): ");
+    print_wrapped(current_row, 0, "Enter Delay (in seconds, or leave empty for 0): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(delay_str, sizeof(delay_str) - 1);
     noecho();
 
     // Prompt the user for the expected exit code
-    mvprintw(8, 0, "Enter Expected Exit Code (or leave empty for 0): ");
+    print_wrapped(current_row, 0, "Enter Expected Exit Code (or leave empty for 0): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(expected_code_str, sizeof(expected_code_str) - 1);
     noecho();
@@ -334,7 +409,10 @@ void send_command_to_bot() {
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        mvprintw(9, 0, "Failed to initialize CURL.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to initialize CURL.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -348,7 +426,10 @@ void send_command_to_bot() {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        mvprintw(10, 0, "Failed to send command: %s", curl_easy_strerror(res));
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to send command: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         curl_easy_cleanup(curl);
         return;
@@ -359,7 +440,10 @@ void send_command_to_bot() {
     // Parse the JSON response using cJSON
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json) {
-        mvprintw(11, 0, "Failed to parse JSON response.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to parse JSON response.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -370,14 +454,26 @@ void send_command_to_bot() {
     cJSON *targeted_clients_obj = cJSON_GetObjectItem(parsed_json, "targeted_clients");
 
     if (cJSON_IsString(status_obj)) {
-        mvprintw(12, 0, "Success: %s", status_obj->valuestring);
+        attron(A_BOLD | COLOR_PAIR(3));
+        print_wrapped(current_row+1, 0, "Success: %s", status_obj->valuestring);
+        attroff(A_BOLD | COLOR_PAIR(3));
+        current_row += line_offset; // Adjust for the lines used
         if (cJSON_IsNumber(targeted_clients_obj)) {
-            mvprintw(13, 0, "Targeted Clients: %d", targeted_clients_obj->valueint);
+            attron(A_BOLD | COLOR_PAIR(3));
+            print_wrapped(current_row+1, 0, "Targeted Clients: %d", targeted_clients_obj->valueint);
+            attroff(A_BOLD | COLOR_PAIR(3));
+            current_row += line_offset; // Adjust for the lines used
         }
     } else if (cJSON_IsString(error_obj)) {
-        mvprintw(12, 0, "Error: %s", error_obj->valuestring);
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Error: %s", error_obj->valuestring);
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
     } else {
-        mvprintw(12, 0, "Unexpected response format.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Unexpected response format.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
     }
 
     // Free the JSON object
@@ -392,41 +488,55 @@ void get_bot_file() {
     char query_url[512];
     char response[4096] = {0}; // Buffer to store the HTTP response
 
+    int current_row = 2; // Start at row 2
+
     // Prompt the user for the bot ID
-    mvprintw(2, 0, "Enter Bot ID (<ip>:<port>): ");
+    print_wrapped(current_row, 0, "Enter Bot ID (<ip>:<port>): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(bot_id, sizeof(bot_id) - 1);
     noecho();
 
     // Validate the bot ID
     if (strlen(bot_id) == 0) {
-        mvprintw(4, 0, "Bot ID cannot be empty.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Bot ID cannot be empty.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
 
     // Prompt the user for the number of lines to fetch
-    mvprintw(3, 0, "Enter the number of lines to fetch: ");
+    print_wrapped(current_row, 0, "Enter the number of lines to fetch: ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(lines_str, sizeof(lines_str) - 1);
     noecho();
 
     // Validate the number of lines
     if (strlen(lines_str) == 0 || atoi(lines_str) <= 0) {
-        mvprintw(5, 0, "Invalid number of lines. Please enter a positive integer.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Invalid number of lines. Please enter a positive integer.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
 
     // Prompt the user for the offset
-    mvprintw(4, 0, "Enter the offset (number of most recent lines to ignore): ");
+    print_wrapped(current_row, 0, "Enter the offset (number of most recent lines to ignore): ");
+    current_row += line_offset; // Adjust for the lines used
     echo();
     getnstr(offset_str, sizeof(offset_str) - 1);
     noecho();
 
     // Validate the offset
     if (strlen(offset_str) == 0 || atoi(offset_str) < 0) {
-        mvprintw(6, 0, "Invalid offset. Please enter a non-negative integer.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Invalid offset. Please enter a non-negative integer.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -438,7 +548,10 @@ void get_bot_file() {
 
     CURL *curl = curl_easy_init();
     if (!curl) {
-        mvprintw(7, 0, "Failed to initialize CURL.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to initialize CURL.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -450,7 +563,10 @@ void get_bot_file() {
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        mvprintw(8, 0, "Failed to fetch bot file: %s", curl_easy_strerror(res));
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to fetch bot file: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         curl_easy_cleanup(curl);
         return;
@@ -461,7 +577,10 @@ void get_bot_file() {
     // Parse the JSON response using cJSON
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json) {
-        mvprintw(9, 0, "Failed to parse JSON response.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Failed to parse JSON response.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -469,23 +588,90 @@ void get_bot_file() {
     // Extract the "lines" array from the response
     cJSON *lines_obj = cJSON_GetObjectItem(parsed_json, "lines");
     if (!cJSON_IsArray(lines_obj)) {
-        mvprintw(10, 0, "Unexpected response format. 'lines' array not found.");
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(current_row, 0, "Unexpected response format. 'lines' array not found.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        current_row += line_offset; // Adjust for the lines used
         cJSON_Delete(parsed_json);
         refresh();
         return;
     }
 
     // Display the lines in the CLI
-    mvprintw(10, 0, "Bot file content:");
-    int row = 11;
+    attron(A_BOLD | COLOR_PAIR(3));
+    print_wrapped(current_row, 0, "Bot file content:");
+    attroff(A_BOLD | COLOR_PAIR(3));
+    current_row += line_offset; // Adjust for the lines used
     cJSON *line = NULL;
     cJSON_ArrayForEach(line, lines_obj) {
         if (cJSON_IsString(line)) {
-            mvprintw(row++, 0, "%s", line->valuestring);
+            print_wrapped(current_row, 0, "%s", line->valuestring);
+            current_row += line_offset; // Adjust for the lines used
         }
     }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
     refresh();
+}
+
+void print_wrapped(int start_row, int start_col, const char *format, ...) {
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get the screen dimensions
+
+    int row = start_row;
+    int col = start_col;
+
+    // Format the input string
+    char formatted_text[4096]; // Buffer for the formatted string
+    va_list args;
+    va_start(args, format);
+    vsnprintf(formatted_text, sizeof(formatted_text), format, args);
+    va_end(args);
+
+    int text_len = strlen(formatted_text);
+
+    // Calculate how many lines the text will occupy
+    int lines_used = 0;
+    for (int i = 0, current_col = col; i < text_len; i++) {
+        if (formatted_text[i] == '\n' || current_col >= max_x) {
+            lines_used++;
+            current_col = 0;
+        }
+        if (formatted_text[i] != '\n') {
+            current_col++;
+        }
+    }
+    lines_used++; // Account for the last line
+
+    // Print the formatted string with wrapping
+    for (int i = 0; i < text_len; i++) {
+        if (col >= max_x || formatted_text[i] == '\n') { // Handle wrapping or explicit newlines
+            col = 0;
+            row++;
+            if (row >= max_y) { // Prevent writing outside the screen
+                break;
+            }
+            if (formatted_text[i] == '\n') {
+                continue;
+            }
+        }
+        mvaddch(row, col++, formatted_text[i]); // Print one character at a time
+    }
+
+    // Update the global line offset
+    line_offset = lines_used;
+}
+
+void get_user_input(int start_row, int start_col, char *buffer, size_t buffer_size) {
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get the screen dimensions
+
+    echo();
+    mvgetnstr(start_row, start_col, buffer, buffer_size - 1);
+    noecho();
+
+    // Calculate the number of lines the user's input occupies
+    int input_lines = calculate_input_lines(buffer, start_col, max_x);
+    line_offset += input_lines; // Add the input lines to the global line offset
 }

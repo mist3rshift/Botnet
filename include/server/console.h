@@ -7,5 +7,6 @@ void display_bots();
 void get_file_from_bot();
 void send_command_to_bot();
 void get_bot_file();
+void print_wrapped(int start_row, int start_col, const char *format, ...);
 
 #endif
