@@ -249,28 +249,143 @@ void display_bots() {
 }
 
 void get_file_from_bot() {
-    char bot_id[256];
-    char file_name[256];
-    char post_data[512];
-    char response[4096] = {0}; // Buffer to store the HTTP response
-
-    // Prompt the user for the bot ID
-    print_wrapped(2, 0, "Enter Bot ID [<IP>:<PORT>]: ");
-    echo();
-    getnstr(bot_id, sizeof(bot_id) - 1);
-    noecho();
-
-    // Validate the bot ID
-    if (strlen(bot_id) == 0) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(4, 0, "Bot ID cannot be empty.");
+        print_wrapped(4, 0, "Failed to initialize CURL.");
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
+        getch(); // Wait for user input before returning
         return;
     }
 
+    char response[4096] = {0}; // Buffer to store the HTTP response
+
+    // Fetch connected bots
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Failed to fetch bots: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch(); // Wait for user input before returning
+        curl_easy_cleanup(curl);
+        return;
+    }
+
+    curl_easy_cleanup(curl);
+
+    // Parse the JSON response using cJSON
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Failed to parse JSON response.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch(); // Wait for user input before returning
+        return;
+    }
+
+    // Ensure the response is an array
+    if (!cJSON_IsArray(parsed_json)) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "Unexpected response format. Expected an array.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch(); // Wait for user input before returning
+        cJSON_Delete(parsed_json); // Free the JSON object
+        return;
+    }
+
+    // Check if there are any bots
+    int total_bots = cJSON_GetArraySize(parsed_json);
+    if (total_bots == 0) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "No bots to select.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch(); // Wait for user input before returning
+        cJSON_Delete(parsed_json);
+        return;
+    }
+
+    // Create a menu for selecting a bot
+    int highlight = 0; // Index of the currently highlighted bot
+    int ch;
+    char selected_bot[256] = "None"; // Store the selected bot for the footer
+
+    while (1) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(3));
+        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
+        attroff(A_BOLD | COLOR_PAIR(3));
+
+        // Display the list of bots
+        for (int i = 0; i < total_bots; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+            cJSON *socket_obj = cJSON_GetObjectItem(bot, "socket");
+            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+
+            if (cJSON_IsString(socket_obj) && cJSON_IsString(id_obj)) {
+                if (i == highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected bot in blue
+                    mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, socket_obj->valuestring);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                } else {
+                    attron(COLOR_PAIR(2)); // Normal bots in white
+                    mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, socket_obj->valuestring);
+                    attroff(COLOR_PAIR(2));
+                }
+            }
+        }
+
+        // Add a footer at the bottom
+        attron(A_BOLD | COLOR_PAIR(2));
+        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+        attroff(A_BOLD | COLOR_PAIR(2));
+
+        refresh();
+
+        // Handle user input
+        ch = getch();
+        if (ch == 'q') {
+            cJSON_Delete(parsed_json);
+            return; // Exit on 'q'
+        } else if (ch == KEY_UP) {
+            highlight = (highlight - 1 + total_bots) % total_bots; // Move up
+        } else if (ch == KEY_DOWN) {
+            highlight = (highlight + 1) % total_bots; // Move down
+        } else if (ch == '\n') { // Enter key
+            // Get the selected bot's ID
+            cJSON *selected_bot_obj = cJSON_GetArrayItem(parsed_json, highlight);
+            cJSON *selected_id = cJSON_GetObjectItem(selected_bot_obj, "id");
+            if (cJSON_IsString(selected_id)) {
+                strncpy(selected_bot, selected_id->valuestring, sizeof(selected_bot) - 1);
+                selected_bot[sizeof(selected_bot) - 1] = '\0'; // Ensure null termination
+            }
+            attron(A_BOLD | COLOR_PAIR(2));
+            mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+            attroff(A_BOLD | COLOR_PAIR(2));
+
+            refresh();
+            break; // Exit the menu
+        }
+    }
+
+    cJSON_Delete(parsed_json); // Free the JSON object
+
     // Prompt the user for the file name
-    print_wrapped(3, 0, "Enter File Name [ex: main.log]: ");
+    char file_name[256];
+    print_wrapped(2, 0, "Enter File Name [ex: main.log]: ");
     echo();
     getnstr(file_name, sizeof(file_name) - 1);
     noecho();
@@ -278,16 +393,17 @@ void get_file_from_bot() {
     // Validate the file name
     if (strlen(file_name) == 0) {
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(5, 0, "File Name cannot be empty.");
+        print_wrapped(4, 0, "File Name cannot be empty.");
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         return;
     }
 
     // Construct the POST data
-    snprintf(post_data, sizeof(post_data), "bot_id=%s&file_name=%s", bot_id, file_name);
+    char post_data[512];
+    snprintf(post_data, sizeof(post_data), "bot_id=%s&file_name=%s", selected_bot, file_name);
 
-    CURL *curl = curl_easy_init();
+    curl = curl_easy_init();
     if (!curl) {
         attron(A_BOLD | COLOR_PAIR(4));
         print_wrapped(6, 0, "Failed to initialize CURL.");
@@ -303,7 +419,7 @@ void get_file_from_bot() {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
 
-    CURLcode res = curl_easy_perform(curl);
+    res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         attron(A_BOLD | COLOR_PAIR(4));
         print_wrapped(7, 0, "Failed to send upload request: %s", curl_easy_strerror(res));
@@ -315,40 +431,13 @@ void get_file_from_bot() {
 
     curl_easy_cleanup(curl);
 
-    // Parse the JSON response using cJSON
-    cJSON *parsed_json = cJSON_Parse(response);
-    if (!parsed_json) {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(8, 0, "Failed to parse JSON response.");
-        attroff(A_BOLD | COLOR_PAIR(4));
-        refresh();
-        return;
-    }
-
-    // Display the response
-    int max_y, max_x;
-    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions
-    int start_line = 0;             // Line to start displaying from
-    int total_lines = 1;            // Assume a single-line response for simplicity
-
-    while (1) {
-        clear();
-        attron(A_BOLD | COLOR_PAIR(3));
-        mvprintw(0, 0, "Upload Response (Press 'q' to exit):");
-        attroff(A_BOLD | COLOR_PAIR(3));
-
-        mvprintw(1, 0, "%s", response);
-
-        refresh();
-
-        // Use the reusable input loop for scrolling and quitting
-        if (handle_scrolling_and_quitting(&start_line, total_lines, max_y - 2)) {
-            break; // Exit if 'q' is pressed
-        }
-    }
-
-    // Free the JSON object
-    cJSON_Delete(parsed_json);
+    // Display the server's response
+    attron(A_BOLD | COLOR_PAIR(3));
+    print_wrapped(8, 0, "Upload request sent successfully. Server response:");
+    attroff(A_BOLD | COLOR_PAIR(3));
+    print_wrapped(9, 0, "%s", response);
+    refresh();
+    getch(); // Wait for user input before returning
 }
 
 void send_command_to_bot() {
