@@ -3,15 +3,16 @@ async function loadUploadModal() {
     const response = await fetch('/static/html/partial.upload-modal.html'); // Fetch the modal HTML snippet
     if (response.ok) {
         const modalHtml = await response.text();
-        document.getElementById('modal-section').innerHTML = modalHtml; // Inject the modal into the DOM
+        document.getElementById('upload-modal-section').innerHTML = modalHtml; // Inject the modal into the DOM
 
         // Initialize modal-related JavaScript after loading
         initializeUploadModal();
     } else {
-        console.error('Failed to load upload modal:', response.status);
+        showNotification('Failed to load upload modal', 'error');
     }
 }
 
+// Initialize the upload modal
 function initializeUploadModal() {
     const modal = document.getElementById('upload-modal');
     const openModalButton = document.getElementById('open-upload-modal');
@@ -44,12 +45,12 @@ function initializeUploadModal() {
         const fileName = fileNameInput.value.trim();
 
         if (!botId) {
-            alert("Bot ID is missing.");
+            showNotification('Bot ID is missing.', 'error');
             return;
         }
 
         if (!fileName) {
-            alert("Please enter a file name.");
+            showNotification('Please enter a file name.', 'error');
             return;
         }
 
@@ -63,14 +64,15 @@ function initializeUploadModal() {
             });
 
             if (response.ok) {
-                alert("File request sent successfully!");
+                const result = await response.json();
+                showNotification(`Upload request successfully sent to client.`, 'success');
             } else {
                 const error = await response.json();
-                alert(`Error: ${error.error}`);
+                showNotification(`Error: ${error.error}`, 'error');
             }
         } catch (error) {
-            console.error("Error sending file request:", error);
-            alert("Failed to send file request.");
+            console.error('Error sending file request:', error);
+            showNotification('Failed to send file request.', 'error');
         }
 
         // Close the modal

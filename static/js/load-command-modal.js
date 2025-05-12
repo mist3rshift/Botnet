@@ -3,7 +3,10 @@ async function loadCommandModal() {
     const response = await fetch('/static/html/partial.command-modal.html');
     if (response.ok) {
         const modalHtml = await response.text();
-        document.getElementById('modal-section').innerHTML = modalHtml;
+        document.getElementById('command-modal-section').innerHTML = modalHtml;
+
+        // Load the notification system
+        await loadNotificationSystem();
 
         // Initialize modal-related JavaScript after loading
         initializeCommandModal();
@@ -12,6 +15,39 @@ async function loadCommandModal() {
     }
 }
 
+// Load the notification system
+async function loadNotificationSystem() {
+    const response = await fetch('/static/html/partial.notification.html');
+    if (response.ok) {
+        const notificationHtml = await response.text();
+        document.body.insertAdjacentHTML('beforeend', notificationHtml);
+
+        // Add event listener to close the notification
+        const closeButton = document.getElementById('notification-close');
+        closeButton.addEventListener('click', () => {
+            document.getElementById('notification').classList.add('hidden');
+        });
+    } else {
+        console.error('Failed to load notification system:', response.status);
+    }
+}
+
+// Show a notification
+function showNotification(message, type) {
+    const notification = document.getElementById('notification');
+    const messageSpan = document.getElementById('notification-message');
+
+    if (!notification || !messageSpan) {
+        console.error('Notification system is not loaded.');
+        return;
+    }
+
+    messageSpan.textContent = message;
+    notification.className = type; // Apply the type class (success or error)
+    notification.classList.remove('hidden');
+}
+
+// Initialize the command modal
 function initializeCommandModal() {
     const modal = document.getElementById('command-modal');
     const openModalButton = document.getElementById('open-command-modal');
@@ -73,12 +109,12 @@ function initializeCommandModal() {
         const expectedCode = document.getElementById('expected-code-input').value.trim() || '0';
 
         if (!botIds && !numClients) {
-            alert('Please specify either a list of client IDs or the number of clients to target.');
+            showNotification('Please specify either a list of client IDs or the number of clients to target.', 'error');
             return;
         }
 
         if (!program) {
-            alert('Please enter a program.');
+            showNotification('Please enter a program.', 'error');
             return;
         }
 
@@ -92,13 +128,14 @@ function initializeCommandModal() {
             });
 
             if (response.ok) {
-                alert('Command sent successfully!');
+                const result = await response.json();
+                showNotification(`Command sent successfully! Command ID: ${result.command_id}`, 'success');
             } else {
                 const error = await response.json();
-                alert(`Error: ${error.message}`);
+                showNotification(`Error: ${error.message}`, 'error');
             }
         } catch (err) {
-            alert(`Failed to send command: ${err.message}`);
+            showNotification(`Failed to send command: ${err.message}`, 'error');
         }
 
         modal.style.display = 'none';
@@ -107,3 +144,17 @@ function initializeCommandModal() {
 
 // Call the function to load the command modal
 loadCommandModal();
+
+document.addEventListener("DOMContentLoaded", () => {
+    const openModalButton = document.getElementById('open-command-modal');
+    if (openModalButton) {
+        openModalButton.addEventListener('click', () => {
+            const modal = document.getElementById('command-modal');
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        });
+    } else {
+        console.error('Open command modal button not found.');
+    }
+});
