@@ -209,7 +209,12 @@ void display_bots() {
         mvprintw(0, 0, "Connected Bots (Press 'q' to exit):");
         attroff(A_BOLD | COLOR_PAIR(3));
 
-        int display_lines = max_y - 2; // Lines available for display (excluding header)
+        int display_lines = max_y - 3; // Lines available for display (excluding header and footer)
+        if (total_lines <= 0) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            mvprintw(start_line+1, 0, "No bots to display");
+            attroff(A_BOLD | COLOR_PAIR(4));
+        }
         for (int i = 0; i < display_lines && (start_line + i) < total_lines; i++) {
             cJSON *bot = cJSON_GetArrayItem(parsed_json, start_line + i);
             if (cJSON_IsObject(bot)) {
@@ -225,6 +230,11 @@ void display_bots() {
                 }
             }
         }
+
+        // Add a footer at the bottom
+        attron(A_BOLD | COLOR_PAIR(2));
+        mvprintw(max_y - 1, 0, "Press 'q' to exit | Use Arrow Keys to Scroll");
+        attroff(A_BOLD | COLOR_PAIR(2));
 
         refresh();
 
