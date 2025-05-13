@@ -5,46 +5,11 @@ async function loadCommandModal() {
         const modalHtml = await response.text();
         document.getElementById('command-modal-section').innerHTML = modalHtml;
 
-        // Load the notification system
-        await loadNotificationSystem();
-
         // Initialize modal-related JavaScript after loading
         initializeCommandModal();
     } else {
         console.error('Failed to load command modal:', response.status);
     }
-}
-
-// Load the notification system
-async function loadNotificationSystem() {
-    const response = await fetch('/static/html/partial.notification.html');
-    if (response.ok) {
-        const notificationHtml = await response.text();
-        document.body.insertAdjacentHTML('beforeend', notificationHtml);
-
-        // Add event listener to close the notification
-        const closeButton = document.getElementById('notification-close');
-        closeButton.addEventListener('click', () => {
-            document.getElementById('notification').classList.add('hidden');
-        });
-    } else {
-        console.error('Failed to load notification system:', response.status);
-    }
-}
-
-// Show a notification
-function showNotification(message, type) {
-    const notification = document.getElementById('notification');
-    const messageSpan = document.getElementById('notification-message');
-
-    if (!notification || !messageSpan) {
-        console.error('Notification system is not loaded.');
-        return;
-    }
-
-    messageSpan.textContent = message;
-    notification.className = type; // Apply the type class (success or error)
-    notification.classList.remove('hidden');
 }
 
 // Initialize the command modal
@@ -129,7 +94,12 @@ function initializeCommandModal() {
 
             if (response.ok) {
                 const result = await response.json();
-                showNotification(`Command sent successfully! Command ID: ${result.command_id}`, 'success');
+                if ((result.status === "success") && (result.targeted_clients === 0)) {
+                    showNotification(`Error sending command, no client successfully contacted: ${result.targeted_clients}`, 'error');
+                } else {
+                    showNotification(`Command sent successfully! Successful recipients: ${result.targeted_clients}`, 'success');
+                }
+                
             } else {
                 const error = await response.json();
                 showNotification(`Error: ${error.message}`, 'error');

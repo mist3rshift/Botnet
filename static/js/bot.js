@@ -130,6 +130,10 @@ async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
             if (data.lines && Array.isArray(data.lines)) {
                 const logs = data.lines.join('\n'); // Combine the lines into a single string
 
+                if (logs.length <= 0) {
+                    showNotification('No lines fetched. Bot may be offline.', 'error');
+                }
+
                 if (prepend) {
                     // Calculate the starting line number for prepended lines
                     const startingLineNumber = offset - linesPerPage + 1;

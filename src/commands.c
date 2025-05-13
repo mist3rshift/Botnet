@@ -93,6 +93,9 @@ int send_command(int sockfd, const Command *cmd) {
 
     output_log("Serialized command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
 
+    // TODO: FIX "Error sending command: Bad file descriptor" issue here
+
+
     // Send the serialized command to the client
     ssize_t bytes_sent = send(sockfd, buffer, strlen(buffer), 0);
     if (bytes_sent < 0) {
