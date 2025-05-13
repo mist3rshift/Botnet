@@ -142,7 +142,6 @@ int receive_message_client(
     if (bytes_received <= 0) {
         if (bytes_received == 0) {
             output_log("Server disconnected\n", LOG_ERROR, LOG_TO_ALL);
-            exit(EXIT_FAILURE);
         } else {
             perror("Error receiving message");
             output_log("Error receiving message from server\n", LOG_ERROR, LOG_TO_ALL);
