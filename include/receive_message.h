@@ -4,6 +4,7 @@
 #include <sys/types.h> // For ssize_t
 #include "server/hash_table.h"
 
+// Use dependency injection for tests
 int receive_message_server(
     int client_socket,
     char *(*generate_client_id)(int),
@@ -11,6 +12,7 @@ int receive_message_server(
     ssize_t (*recv_func)(int, void *, size_t, int)
 );
 
+// Use dependency injection for tests
 int receive_message_client(
     int sockfd,
     char *buffer,

@@ -76,11 +76,12 @@ int write_to_client_log(Client *client, char *message) {
     return 0;
 }
 
+// Note : Using dependency injection for 3 functions to pass tests with Mock functions
 int receive_message_server(
     int client_socket,
-    char *(*generate_client_id)(int),
-    Client *(*find_client_func)(ClientHashTable *, const char *),
-    ssize_t (*recv_func)(int, void *, size_t, int)
+    char *(*generate_client_id)(int), // Inject generate client id into code
+    Client *(*find_client_func)(ClientHashTable *, const char *), // inject find client function into code
+    ssize_t (*recv_func)(int, void *, size_t, int) // Inject recv function into code
 ) {
     char buffer[1024];
     struct timeval timeout = {5, 0}; // 5-second timeout
@@ -111,6 +112,17 @@ int receive_message_server(
         output_log("Error: Client with ID %s not found\n", LOG_ERROR, LOG_TO_ALL, client_id);
         free(client_id);
         return -1;
+    }
+
+    // === GESTION DU UPLOAD ===
+    if (strncmp(buffer, "UPLOAD", 6) == 0) {
+        const char *filename = buffer + 6; // Extraire le nom du fichier après "UPLOAD "
+
+        output_log("UPLOAD request detected from client. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
+
+        int status = handle_upload(client_socket, filename);
+        write_to_client_log(client, "UPLOAD request handled");
+        return status;
     }
 
     // Write the message to the client's log file

