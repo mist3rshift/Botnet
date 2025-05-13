@@ -76,13 +76,20 @@ int handle_upload(int client_socket, const char *filename) {
     char buffer[BLOCK_SIZE];
     ssize_t bytes_received;
 
-    // Recevoir les données du fichier
     while ((bytes_received = recv(client_socket, buffer, sizeof(buffer), 0)) > 0) {
-        // Vérifiez si le signal de fin "EOF" est reçu
-        if (strncmp(buffer, "EOF", 3) == 0) {
-            break;
+        // Vérifiez si "EOF" est présent dans les données reçues
+        char *eof_position = strstr(buffer, "EOF");
+        if (eof_position) {
+            // Écrire uniquement les données avant "EOF"
+            size_t data_length = eof_position - buffer;
+            if (data_length > 0) {
+                fwrite(buffer, 1, data_length, fp);
+            }
+            output_log("handle_upload : Received EOF signal from client socket %d\n", LOG_DEBUG, LOG_TO_ALL, client_socket);
+            break; // Arrêtez la réception
         }
 
+        // Écrire toutes les données reçues dans le fichier
         fwrite(buffer, 1, bytes_received, fp);
     }
 
