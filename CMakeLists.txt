@@ -23,6 +23,7 @@ add_executable(server # Define the server build
         src/server/console.c
         lib/mongoose.c
         lib/cJSON.c
+        src/file_exchange.c
 )
 target_link_libraries(server PRIVATE CURL::libcurl) # Link libcurl to the server
 target_link_libraries(server PRIVATE ncurses)
@@ -38,6 +39,7 @@ add_executable(client # Define the client build
         src/commands.c
         src/launch_arguments.c
         src/server/hash_table.c # Include hash_table.c for the client
+        src/file_exchange.c
 )
 
 add_executable(test_hash_table # Define the test hash table
@@ -68,6 +70,7 @@ add_executable(test_webserver # Define the tests for the webserver
         src/receive_message.c
         src/server/server_utils.c
         lib/cJSON.c
+        src/file_exchange.c
 )
 target_link_libraries(test_webserver PRIVATE cmocka)
 target_include_directories(test_webserver PRIVATE include)
@@ -79,6 +82,8 @@ add_executable(test_receive_message
     src/logging.c
     src/server/hash_table.c
     src/server/server_utils.c
+    src/file_exchange.c
+        src/send_message.c
 )
 target_link_libraries(test_receive_message PRIVATE cmocka)
 target_include_directories(test_receive_message PRIVATE include)

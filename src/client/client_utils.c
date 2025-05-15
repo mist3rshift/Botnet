@@ -9,7 +9,7 @@
 #include "../../include/send_message.h"
 #include "../../include/receive_message.h"
 #include "../../include/commands.h"
-
+#include "../../include/file_exchange.h"
 
 // Check the 8 first characters of the buffer to check the order type
 enum OrderType get_order_enum_type(const char *buffer) {
@@ -151,7 +151,7 @@ void receive_and_process_message(int sockfd) {
             break;
         case UPLOAD:
             output_log("Preparing for UPLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
-            upload_file_to_server(cmd.params[0], sockfd);
+            send_file(sockfd,cmd.params[0]);
             break;
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
@@ -160,60 +160,5 @@ void receive_and_process_message(int sockfd) {
 
     free_command(&cmd); // Nettoyer correctement après
     return ;
-}
-
-
-void upload_file_to_server(const char *filename, int sockfd) {
-    FILE *fp = fopen(filename, "rb");
-    if (!fp) {
-        send_message(sockfd, "ERROR: File not found");
-        return;
-    }
-    // Récupérer la taille du fichier
-    struct stat st;
-    if (stat(filename, &st) != 0) {
-        output_log("upload_file_to_server : Error getting file stats", LOG_INFO, LOG_TO_ALL, filename);
-        fclose(fp);
-        return;
-    }
-    long filesize = st.st_size;
-    long filesize_net = htobe64(filesize); // conversion réseau
-    
-    // Envoie du nom de fichier
-    char header[1024];
-    snprintf(header, sizeof(header), "UPLOAD%s", filename);
-    if (send(sockfd, header, strlen(header), 0) < 0) {
-        output_log("upload_file_to_server : Error sending file data header", LOG_INFO, LOG_TO_ALL, filename);
-        fclose(fp);
-        return;
-    }
-    usleep(100000); // petite pause pour éviter que le header soit collé au reste
-    
-    // Envoie la taille du fichier (8 octets)
-    if (send(sockfd, &filesize_net, sizeof(filesize_net), 0) < 0) {
-        output_log("upload_file_to_server : Error sending file size", LOG_INFO, LOG_TO_ALL, filename);
-        fclose(fp);
-        return;
-    }
-
-    // Envoie des données en chunks de taille 4096
-    char buffer[FILE_CHUNK_SIZE];
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, FILE_CHUNK_SIZE, fp)) > 0) { //boubler jusqu'à EOF
-        if (send(sockfd, buffer, bytes_read, 0) < 0) {
-            output_log("upload_file_to_server : Error sending file data",LOG_INFO, LOG_TO_ALL, filename);
-            fclose(fp);
-            return;
-        }
-    }
-
-    fclose(fp);
-    char eof_signal = EOF;
-    if (send(sockfd, &eof_signal, 1, 0) < 0) {
-        output_log("upload_file_to_server : Error sending EOF", LOG_INFO, LOG_TO_ALL, filename);
-        return;
-    }
-    output_log("File '%s' sent successfully\n", LOG_INFO, LOG_TO_ALL, filename);
-    return;
 }
 

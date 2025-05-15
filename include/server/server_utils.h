@@ -1,6 +1,5 @@
 #ifndef SERVER_UTILS_H
 #define SERVER_UTILS_H
-#define BLOCK_SIZE 4096
 char *generate_client_id_from_socket(int client_socket);
 void ensure_client_directory_exists(const char *client_id);
 int handle_upload(int client_sock, const char *filename);
