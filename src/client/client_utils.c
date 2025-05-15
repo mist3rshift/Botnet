@@ -2,12 +2,14 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h> 
 
 #include "../../include/client/client_utils.h"
 #include "../../include/logging.h"
 #include "../../include/send_message.h"
 #include "../../include/receive_message.h"
 #include "../../include/commands.h"
+
 
 // Check the 8 first characters of the buffer to check the order type
 enum OrderType get_order_enum_type(const char *buffer) {
@@ -167,16 +169,32 @@ void upload_file_to_server(const char *filename, int sockfd) {
         send_message(sockfd, "ERROR: File not found");
         return;
     }
-
+    // Récupérer la taille du fichier
+    struct stat st;
+    if (stat(filename, &st) != 0) {
+        output_log("upload_file_to_server : Error getting file stats", LOG_INFO, LOG_TO_ALL, filename);
+        fclose(fp);
+        return;
+    }
+    long filesize = st.st_size;
+    long filesize_net = htobe64(filesize); // conversion réseau
+    
     // Envoie du nom de fichier
     char header[1024];
     snprintf(header, sizeof(header), "UPLOAD%s", filename);
     if (send(sockfd, header, strlen(header), 0) < 0) {
-        output_log("upload_file_to_server : Error sending file data header",LOG_INFO, LOG_TO_ALL, filename);
+        output_log("upload_file_to_server : Error sending file data header", LOG_INFO, LOG_TO_ALL, filename);
         fclose(fp);
         return;
     }
     usleep(100000); // petite pause pour éviter que le header soit collé au reste
+    
+    // Envoie la taille du fichier (8 octets)
+    if (send(sockfd, &filesize_net, sizeof(filesize_net), 0) < 0) {
+        output_log("upload_file_to_server : Error sending file size", LOG_INFO, LOG_TO_ALL, filename);
+        fclose(fp);
+        return;
+    }
 
     // Envoie des données en chunks de taille 4096
     char buffer[FILE_CHUNK_SIZE];
@@ -190,8 +208,9 @@ void upload_file_to_server(const char *filename, int sockfd) {
     }
 
     fclose(fp);
-    if (send(sockfd, "EOF", 3, 0) < 0) { // signal de fin
-        output_log("upload_file_to_server : Error sending EOF ",LOG_INFO, LOG_TO_ALL, filename);
+    char eof_signal = EOF;
+    if (send(sockfd, &eof_signal, 1, 0) < 0) {
+        output_log("upload_file_to_server : Error sending EOF", LOG_INFO, LOG_TO_ALL, filename);
         return;
     }
     output_log("File '%s' sent successfully\n", LOG_INFO, LOG_TO_ALL, filename);

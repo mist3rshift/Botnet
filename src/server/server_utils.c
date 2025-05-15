@@ -7,6 +7,8 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <endian.h>
 
 char *generate_client_id_from_socket(int client_socket)
 {
@@ -74,30 +76,35 @@ int handle_upload(int client_socket, const char *filename) {
     }
 
     char buffer[BLOCK_SIZE];
-    ssize_t bytes_received;
 
-    while ((bytes_received = recv(client_socket, buffer, sizeof(buffer), 0)) > 0) {
-        // Vérifiez si "EOF" est présent dans les données reçues
-        char *eof_position = strstr(buffer, "EOF");
-        if (eof_position) {
-            // Écrire uniquement les données avant "EOF"
-            size_t data_length = eof_position - buffer;
-            if (data_length > 0) {
-                fwrite(buffer, 1, data_length, fp);
-            }
-            output_log("handle_upload : Received EOF signal from client socket %d\n", LOG_DEBUG, LOG_TO_ALL, client_socket);
-            break; // Arrêtez la réception
-        }
+    // Lire la taille du fichier (8 octets)
+    uint64_t filesize_net;
+    ssize_t n = recv(client_socket, &filesize_net, sizeof(filesize_net), MSG_WAITALL);
+    if (n != sizeof(filesize_net)) {
+        output_log("Error: Could not read file size\n", LOG_ERROR, LOG_TO_ALL);
+        fclose(fp);
+        free(client_id);
+        return -1;
+    }
+    uint64_t filesize = be64toh(filesize_net);
 
-        // Écrire toutes les données reçues dans le fichier
+    // Lire exactement filesize octets
+    uint64_t total_received = 0;
+    while (total_received < filesize) {
+        size_t to_read = (filesize - total_received > BLOCK_SIZE) ? BLOCK_SIZE : (filesize - total_received);
+        ssize_t bytes_received = recv(client_socket, buffer, to_read, 0);
+        if (bytes_received <= 0) break;
         fwrite(buffer, 1, bytes_received, fp);
+        total_received += bytes_received;
+        output_log("handle_upload : Received EOF signal from client socket %d\n", LOG_DEBUG, LOG_TO_ALL, client_socket);
+
     }
 
     fclose(fp);
     free(client_id);
 
-    if (bytes_received < 0) {
-        output_log("Error receiving file data from client\n", LOG_ERROR, LOG_TO_ALL);
+    if (total_received != filesize) {
+        output_log("Error: File transfer incomplete\n", LOG_ERROR, LOG_TO_ALL);
         return -1;
     }
 
