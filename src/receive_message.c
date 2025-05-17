@@ -11,6 +11,7 @@
 #include "../include/server/main.h"
 #include "../include/server/server_utils.h"
 #include "../include/server/server_constants.h"
+#include "../include/file_exchange.h"
 
 extern ClientHashTable hash_table;
 
@@ -150,7 +151,19 @@ int receive_message_client(
     }
 
     buffer[bytes_received] = '\0'; // Null-terminate the received message
+
     output_log("Raw message received: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, buffer);
+
+    // === GESTION DU UPLOAD ===
+    if (strncmp(buffer, "UPLOAD", 6) == 0) {
+        const char *filename = buffer + 6; // Extraire le nom du fichier après "UPLOAD "
+
+        output_log("UPLOAD request detected from server. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
+
+        int status = receive_file(sockfd,".", filename);
+
+        return status;
+    }
 
     return 0; // Indicate success
 }

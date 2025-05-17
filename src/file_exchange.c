@@ -8,12 +8,11 @@
 
 #include "../include/logging.h"
 #include "../include/send_message.h"
-#include "../include/receive_message.h"
 #include "../include/file_exchange.h"
-#include "../include/send_message.h"
 
 
 //RECEIVING PART
+
 void ensure_directory_exists(const char *filepath) {
 
     struct stat st = {0};
