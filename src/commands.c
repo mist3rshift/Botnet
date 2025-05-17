@@ -23,7 +23,7 @@
 #include <sys/select.h>
 #include <signal.h>
 #include <sys/wait.h>
-
+#include <ctype.h> // For isdigit
 
 Command *build_command(const char *cmd_id, int delay, const char *program, int expected_code, time_t timestamp, ...) {
     // Allocate memory for the Command structure
@@ -212,51 +212,84 @@ void serialize_command(const Command *cmd, char *buffer, size_t buffer_size) {
              params_buffer);
 }
 
+// Helper function to check if a string is all digits (optionally allow negative sign)
+static int is_number(const char *s) {
+    if (!s || !*s) return 0;
+    if (*s == '-') ++s;
+    while (*s) {
+        if (!isdigit((unsigned char)*s)) return 0;
+        ++s;
+    }
+    return 1;
+}
+
 void deserialize_command(char *buffer, Command *cmd) {
     if (!cmd || !buffer) return;
 
     // Allocate memory for the Command structure
     memset(cmd, 0, sizeof(Command));
+    cmd->order_type = UNKNOWN; // Default to UNKNOWN
+
+    output_log("Got deserialization defaults\n", LOG_DEBUG, LOG_TO_CONSOLE);
 
     // Deserialize the Command structure
     char *saveptr = NULL;
     char *token = strtok_r(buffer, "|", &saveptr);
 
     // Order type
-    if (token) {
-        cmd->order_type = atoi(token);
+    if (!token) return;
+    output_log("token -> %s\n", LOG_DEBUG, LOG_TO_CONSOLE, token);
+
+    if (!is_number(token)) {
+        output_log("Order type is not a number, marking as UNKNOWN\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        cmd->order_type = UNKNOWN;
+        return;
     }
+
+    int order_type = atoi(token);
+    if (order_type < 0 || order_type > UNKNOWN) {
+        cmd->order_type = UNKNOWN;
+        return;
+    }
+
+    cmd->order_type = order_type;
+    output_log("Got order type -> %d\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd->order_type);
 
     // Command ID
     token = strtok_r(NULL, "|", &saveptr);
-    if (token) {
-        strncpy(cmd->cmd_id, token, sizeof(cmd->cmd_id) - 1);
-        cmd->cmd_id[sizeof(cmd->cmd_id) - 1] = '\0';
-    }
+    if (!token) return;
+    strncpy(cmd->cmd_id, token, sizeof(cmd->cmd_id) - 1);
+    cmd->cmd_id[sizeof(cmd->cmd_id) - 1] = '\0';
+
+    output_log("Got command ID -> %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd->cmd_id);
 
     // Delay
     token = strtok_r(NULL, "|", &saveptr);
-    if (token) {
-        cmd->delay = atoi(token);
-    }
+    if (!token) return;
+    cmd->delay = atoi(token);
+
+    output_log("Got delay -> %d\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd->delay);
 
     // Program
     token = strtok_r(NULL, "|", &saveptr);
-    if (token) {
-        cmd->program = strdup(token);
-    }
+    if (!token) return;
+    cmd->program = strdup(token);
+
+    output_log("Got program -> %s\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd->program);
 
     // Expected exit code
     token = strtok_r(NULL, "|", &saveptr);
-    if (token) {
-        cmd->expected_exit_code = atoi(token);
-    }
+    if (!token) return;
+    cmd->expected_exit_code = atoi(token);
+
+    output_log("Got expected exit -> %d\n", LOG_DEBUG, LOG_TO_CONSOLE, cmd->expected_exit_code);
 
     // Timestamp
     token = strtok_r(NULL, "|", &saveptr);
-    if (token) {
-        cmd->timestamp = atol(token);
-    }
+    if (!token) return;
+    cmd->timestamp = atol(token);
+
+    output_log("Got timestamp -> %lld\n", LOG_DEBUG, LOG_TO_CONSOLE, (long long) cmd->timestamp);
 
     // Params
     if (saveptr && strlen(saveptr) > 0) {
@@ -281,4 +314,6 @@ void deserialize_command(char *buffer, Command *cmd) {
     } else {
         cmd->params = NULL;
     }
+
+    output_log("Deserialization end\n", LOG_DEBUG, LOG_TO_CONSOLE);
 }

@@ -22,13 +22,13 @@ void mock_output_log(const char *format, int log_level, int log_target, ...) {
     va_end(args);
 }
 
-// Test function for upload_file_to_server
-void test_upload_file_to_server() {
-    // Create a temporary file to simulate the file to upload
-    const char *test_filename = "test_upload_file.txt";
+// Test function for download_file_to_server
+void test_download_file_to_server() {
+    // Create a temporary file to simulate the file to download
+    const char *test_filename = "test_download_file.txt";
     FILE *test_file = fopen(test_filename, "w");
     assert(test_file != NULL);
-    fprintf(test_file, "This is a test file for upload.\n");
+    fprintf(test_file, "This is a test file for download.\n");
     fclose(test_file);
 
     // Create a mock socket
@@ -41,7 +41,7 @@ void test_upload_file_to_server() {
     dup2(sockfd[1], temp_fd);
 
     // Call the function to test
-    upload_file_to_server(test_filename, sockfd[0]);
+    download_file_to_server(test_filename, sockfd[0]);
 
     // Close the mock socket and temporary file
     close(sockfd[0]);
@@ -56,18 +56,18 @@ void test_upload_file_to_server() {
     fread(buffer, 1, sizeof(buffer), output_file);
     fclose(output_file);
 
-    assert(strstr(buffer, "UPLOADtest_upload_file.txt") != NULL);
-    assert(strstr(buffer, "This is a test file for upload.") != NULL);
+    assert(strstr(buffer, "DOOWNLOADtest_download_file.txt") != NULL);
+    assert(strstr(buffer, "This is a test file for download.") != NULL);
     assert(strstr(buffer, "EOF") != NULL);
 
     // Clean up
     remove(test_filename);
     remove("mock_socket_output.txt");
 
-    printf("test_upload_file_to_server passed.\n");
+    printf("test_download_file_to_server passed.\n");
 }
 
 int main() {
-    test_upload_file_to_server();
+    test_download_file_to_server();
     return 0;
 }

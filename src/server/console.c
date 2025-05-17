@@ -7,6 +7,11 @@
 #include "../lib/cJSON.h"
 #include <stdarg.h> // For va_list, va_start, va_end
 #include <unistd.h>
+#include "../include/file_exchange.h"
+#include <dirent.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <limits.h>
 
 // Global variable to track the number of lines used by the last print_wrapped call
 int line_offset = 0;
@@ -19,10 +24,11 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 // Menu options
-#define NUM_OPTIONS 5
+#define NUM_OPTIONS 6
 const char *menu_options[NUM_OPTIONS] = {
     "Display Bots",
-    "Request Upload from Bot",
+    "Download from bot",
+    "Upload to bot",
     "Send Command to Bot(s)",
     "Get Botfile's Last Lines",
     "Quit"
@@ -117,10 +123,11 @@ void *interactive_menu() {
             clear();
             if (choice == NUM_OPTIONS - 1) { // Quit option
                 attron(A_BOLD | COLOR_PAIR(4));
-                print_wrapped(0, 0, "Exiting CLI. Goodbye!");
+                print_wrapped(0, 0, "Exiting CLI. Goodbye!\n");
                 attroff(A_BOLD | COLOR_PAIR(4));
                 refresh();
-                break;
+                clear();
+                exit(EXIT_SUCCESS);
             } else {
                 print_wrapped(0, 0, "%s", menu_options[choice]);
                 refresh();
@@ -133,9 +140,12 @@ void *interactive_menu() {
                         get_file_from_bot();
                         break;
                     case 2:
-                        send_command_to_bot();
+                        send_file_to_bot();
                         break;
                     case 3:
+                        send_command_to_bot();
+                        break;
+                    case 4:
                         get_bot_file();
                         break;
                 }
@@ -381,76 +391,583 @@ void get_file_from_bot() {
 
     cJSON_Delete(parsed_json); // Free the JSON object
 
-    // Prompt the user for the number of lines to fetch
-    char filename[1024] = {0};
-    print_wrapped(2, 0, "Enter the file name: ");
-    echo();
-    getnstr(filename, sizeof(filename) - 1);
-    noecho();
+    // Start the file selection process
+    char current_dir[512] = ".";
+    while (1) {
+        // Send an 'ls' command to the selected bot
+        memset(response, 0, sizeof(response));
+        char post_data[512];
+        snprintf(post_data, sizeof(post_data),
+                 "bot_ids=%s&cmd_id=0&program=ls&params=-la %s&delay=0&expected_code=0",
+                 selected_bot, current_dir);
 
-    // Validate the number of lines
-    if (strlen(filename) <= 0) {
+        curl = curl_easy_init();
+        if (!curl) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Failed to initialize CURL.");
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            return;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/command");
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Failed to send 'ls' command: %s", curl_easy_strerror(res));
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            curl_easy_cleanup(curl);
+            return;
+        }
+
+        curl_easy_cleanup(curl);
+
+        // Parse the 'ls' response
+        /* 
+        // DEBUG RAW response
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(4, 0, "Invalid file name selected!");
+        print_wrapped(2, 0, "Raw response: %s", response); // Log the raw response
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
-        return;
+        getch(); // Wait for user input to inspect the response
+        */
+        cJSON *response_json = cJSON_Parse(response);
+        if (!response_json) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Failed to parse 'ls' response.");
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            getch(); // Wait for user input before returning
+            return;
+        }
+
+        // Extract the "results" array
+        cJSON *results = cJSON_GetObjectItem(response_json, "results");
+        if (!cJSON_IsArray(results)) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Invalid 'ls' response format. 'results' array not found.");
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            cJSON_Delete(response_json);
+            getch(); // Wait for user input before returning
+            return;
+        }
+
+        // Get the first result (assuming only one client is targeted)
+        cJSON *first_result = cJSON_GetArrayItem(results, 0);
+        if (!cJSON_IsObject(first_result)) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Invalid 'ls' response format. First result is not an object.");
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            cJSON_Delete(response_json);
+            getch(); // Wait for user input before returning
+            return;
+        }
+
+        // Extract the "output" array
+        cJSON *output = cJSON_GetObjectItem(first_result, "output");
+        if (!cJSON_IsArray(output)) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Invalid 'ls' response format. 'output' array not found.");
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            cJSON_Delete(response_json);
+            getch(); // Wait for user input before returning
+            return;
+        }
+
+        // Remove the very first line of the output
+        cJSON_DeleteItemFromArray(output, 0);
+
+        // Display the file selection menu
+        int file_highlight = 0;
+        int start_index = 0; // Index of the first visible file
+        int total_files = cJSON_GetArraySize(output);
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x); // Get the screen dimensions
+        int visible_lines = max_y - 2;  // Number of lines available for displaying files (excluding header/footer)
+
+        while (1) {
+            clear();
+            attron(A_BOLD | COLOR_PAIR(3));
+            mvprintw(0, 0, "Select a File (Press 'q' to cancel):");
+            attroff(A_BOLD | COLOR_PAIR(3));
+
+            // Display the visible portion of the file list
+            for (int i = 0; i < visible_lines && (start_index + i) < total_files; i++) {
+                cJSON *file = cJSON_GetArrayItem(output, start_index + i);
+                if (cJSON_IsString(file)) {
+                    if ((start_index + i) == file_highlight) {
+                        attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected file in blue
+                        mvprintw(i + 1, 0, "> %s", file->valuestring);
+                        attroff(A_BOLD | COLOR_PAIR(1));
+                    } else {
+                        attron(COLOR_PAIR(2)); // Normal files in white
+                        mvprintw(i + 1, 0, "  %s", file->valuestring);
+                        attroff(COLOR_PAIR(2));
+                    }
+                }
+            }
+
+            // Add a footer at the bottom
+            attron(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 1, 0, "Use Arrow Keys to Scroll | Press 'q' to Cancel");
+            attroff(A_BOLD | COLOR_PAIR(2));
+
+            refresh();
+
+            // Handle user input
+            int ch = getch();
+            if (ch == 'q') {
+                cJSON_Delete(response_json);
+                return; // Exit on 'q'
+            } else if (ch == KEY_UP) {
+                if (file_highlight > 0) {
+                    file_highlight--;
+                    if (file_highlight < start_index) {
+                        start_index--; // Scroll up
+                    }
+                }
+            } else if (ch == KEY_DOWN) {
+                if (file_highlight < total_files - 1) {
+                    file_highlight++;
+                    if (file_highlight >= start_index + visible_lines) {
+                        start_index++; // Scroll down
+                    }
+                }
+            } else if (ch == '\n') { // Enter key
+                cJSON *selected_file = cJSON_GetArrayItem(output, file_highlight);
+                if (cJSON_IsString(selected_file)) {
+                    const char *file_name = selected_file->valuestring;
+                    // Parse the 'ls -la' output to determine if it's a file or directory
+                    cJSON *selected_file = cJSON_GetArrayItem(output, file_highlight);
+                    if (cJSON_IsString(selected_file)) {
+                        const char *line = selected_file->valuestring;
+
+                        // Extract the file or directory name (last part of the line)
+                        const char *file_name = strrchr(line, ' ');
+                        if (file_name) {
+                            file_name++; // Move past the space to the actual name
+                        } else {
+                            file_name = line; // If no space is found, use the whole line
+                        }
+
+                        // Trim trailing whitespace or newline characters
+                        char trimmed_name[512];
+                        snprintf(trimmed_name, sizeof(trimmed_name), "%s", file_name);
+                        trimmed_name[strcspn(trimmed_name, "\n")] = '\0'; // Remove newline
+                        trimmed_name[strcspn(trimmed_name, "\r")] = '\0'; // Remove carriage return
+
+                        // Get type of object (file or dir?)
+                        char permissions[11] = {0};
+                        sscanf(line, "%10s", permissions);
+
+                        if (permissions[0] == 'd') {
+                            // It's a directory, send a 'cd' command
+                            memset(response, 0, sizeof(response));
+                            snprintf(post_data, sizeof(post_data),
+                                        "bot_ids=%s&cmd_id=0&program=cd&params=\"%s\"&delay=0&expected_code=0",
+                                        selected_bot, trimmed_name); // Quote the name to handle spaces
+
+                            curl = curl_easy_init();
+                            if (!curl) {
+                                attron(A_BOLD | COLOR_PAIR(4));
+                                print_wrapped(2, 0, "Failed to initialize CURL for 'cd' command.");
+                                attroff(A_BOLD | COLOR_PAIR(4));
+                                refresh();
+                                return;
+                            }
+
+                            curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/command");
+                            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+                            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+                            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+                            curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+                            res = curl_easy_perform(curl);
+                            if (res != CURLE_OK) {
+                                attron(A_BOLD | COLOR_PAIR(4));
+                                print_wrapped(2, 0, "Failed to send 'cd' command: %s", curl_easy_strerror(res));
+                                attroff(A_BOLD | COLOR_PAIR(4));
+                                refresh();
+                                curl_easy_cleanup(curl);
+                                return;
+                            }
+
+                            curl_easy_cleanup(curl);
+
+                            // Break to refresh the 'ls' menu
+                            break;
+                        } else if (permissions[0] == '-') {
+                            // It's a file, send a download request
+                            memset(response, 0, sizeof(response));
+                            snprintf(post_data, sizeof(post_data),
+                                        "bot_id=%s&file_name=\"%s\"",
+                                        selected_bot, trimmed_name); // Quote the name to handle spaces
+
+                            curl = curl_easy_init();
+                            if (!curl) {
+                                attron(A_BOLD | COLOR_PAIR(4));
+                                print_wrapped(7, 0, "Failed to initialize CURL.");
+                                attroff(A_BOLD | COLOR_PAIR(4));
+                                refresh();
+                                return;
+                            }
+
+                            curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/download");
+                            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+                            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+                            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+                            curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+                            res = curl_easy_perform(curl);
+                            if (res != CURLE_OK) {
+                                attron(A_BOLD | COLOR_PAIR(4));
+                                print_wrapped(7, 0, "Failed to send download request: %s", curl_easy_strerror(res));
+                                attroff(A_BOLD | COLOR_PAIR(4));
+                                refresh();
+                                curl_easy_cleanup(curl);
+                                return;
+                            }
+
+                            curl_easy_cleanup(curl);
+
+                            clear(); // Remove the file display
+
+                            // Add the header back
+                            attron(A_BOLD | COLOR_PAIR(3));
+                            mvprintw(0, 0, "Select a File (Press 'q' to cancel):");
+                            attroff(A_BOLD | COLOR_PAIR(3));
+
+                            // Handle the download response
+                            attron(A_BOLD | COLOR_PAIR(3));
+                            print_wrapped(2, 0, "File downloaded successfully :\n$server_root/downloads/%s/%s", selected_bot, trimmed_name);
+                            attroff(A_BOLD | COLOR_PAIR(3));
+                            refresh();
+                            getch(); // Wait for user input before returning
+                            return;
+                        } else {
+                            clear(); // Remove the file display
+
+                            // Add the header back
+                            attron(A_BOLD | COLOR_PAIR(3));
+                            mvprintw(0, 0, "Select a File (Press 'q' to cancel):");
+                            attroff(A_BOLD | COLOR_PAIR(3));
+
+                            // Unknown type
+                            attron(A_BOLD | COLOR_PAIR(4));
+                            print_wrapped(2, 0, "Unknown file type: %s", trimmed_name);
+                            attroff(A_BOLD | COLOR_PAIR(4));
+                            refresh();
+                            getch(); // Wait for user input before returning
+                        }
+                    }
+                }
+            }
+        }
     }
+}
 
-    // Construct the query URL
-    char post_data[2048];
-     snprintf(post_data, sizeof(post_data),
-             "bot_id=%s&file_name=%s",
-             selected_bot, filename);
-
-    curl = curl_easy_init();
+void send_file_to_bot() {
+    // --- 1. Select a bot ---
+    CURL *curl = curl_easy_init();
     if (!curl) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(7, 0, "Failed to initialize CURL.");
+        print_wrapped(2, 0, "Failed to initialize CURL.");
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
+        getch();
         return;
     }
 
-    // Set up the CURL request
-    memset(response, 0, sizeof(response));
-    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/upload");
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    char response[4096] = {0};
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
 
-    res = curl_easy_perform(curl);
+    CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(4, 0, "Failed to send upload request : %s", curl_easy_strerror(res));
+        print_wrapped(2, 0, "Failed to fetch bots: %s", curl_easy_strerror(res));
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
+        getch();
         curl_easy_cleanup(curl);
         return;
     }
-
     curl_easy_cleanup(curl);
 
-    // Parse the JSON response
-    cJSON *parsed_file = cJSON_Parse(response);
-    if (!parsed_file) {
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json || !cJSON_IsArray(parsed_json)) {
+        clear();
         attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(4, 0, "Failed to parse JSON response.");
+        print_wrapped(2, 0, "Failed to parse JSON response.");
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
+        getch();
+        if (parsed_json) cJSON_Delete(parsed_json);
         return;
     }
 
-    attron(A_BOLD | COLOR_PAIR(3));
-    print_wrapped(4, 0, "Response : %s", response);
-    attroff(A_BOLD | COLOR_PAIR(3));
+    int total_bots = cJSON_GetArraySize(parsed_json);
+    if (total_bots == 0) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(2, 0, "No bots available.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch();
+        cJSON_Delete(parsed_json);
+        return;
+    }
 
-    // Free the JSON object
-    cJSON_Delete(parsed_file);
+    int highlight = 0, ch;
+    char selected_bot[256] = "None";
 
-    refresh();
-    getch(); // Wait for user input before returning
+    while (1) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(3));
+        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
+        attroff(A_BOLD | COLOR_PAIR(3));
+        for (int i = 0; i < total_bots; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
+
+            if (cJSON_IsString(id_obj) && cJSON_IsString(status_obj)) {
+                if (i == highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status_obj->valuestring);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                    strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                    selected_bot[sizeof(selected_bot) - 1] = '\0';
+                } else {
+                    attron(COLOR_PAIR(2));
+                    mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status_obj->valuestring);
+                    attroff(COLOR_PAIR(2));
+                }
+            }
+        }
+        attron(A_BOLD | COLOR_PAIR(2));
+        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+        attroff(A_BOLD | COLOR_PAIR(2));
+        refresh();
+
+        ch = getch();
+        if (ch == 'q') {
+            cJSON_Delete(parsed_json);
+            return;
+        } else if (ch == KEY_UP) {
+            highlight = (highlight - 1 + total_bots) % total_bots;
+        } else if (ch == KEY_DOWN) {
+            highlight = (highlight + 1) % total_bots;
+        } else if (ch == '\n') {
+            break;
+        }
+    }
+    cJSON_Delete(parsed_json);
+
+    // --- 2. File browser using ls -la ---
+    char current_dir[PATH_MAX] = ".";
+    while (1) {
+        FILE *fp;
+        char cmd[PATH_MAX + 16];
+        snprintf(cmd, sizeof(cmd), "ls -la \"%s\"", current_dir);
+        fp = popen(cmd, "r");
+        if (!fp) {
+            attron(A_BOLD | COLOR_PAIR(4));
+            print_wrapped(2, 0, "Failed to list directory: %s", strerror(errno));
+            attroff(A_BOLD | COLOR_PAIR(4));
+            refresh();
+            getch();
+            return;
+        }
+
+        // Read lines into array
+        char lines[1024][PATH_MAX + 128];
+        int types[1024]; // 0=file, 1=dir, 2=other
+        int count = 0;
+        char buf[PATH_MAX + 128];
+        while (fgets(buf, sizeof(buf), fp) && count < 1024) {
+            strncpy(lines[count], buf, sizeof(lines[count]) - 1);
+            lines[count][sizeof(lines[count]) - 1] = '\0';
+            // Parse type
+            char permissions[11] = {0};
+            sscanf(buf, "%10s", permissions);
+            if (permissions[0] == 'd')
+                types[count] = 1;
+            else if (permissions[0] == '-')
+                types[count] = 0;
+            else
+                types[count] = 2;
+            count++;
+        }
+        pclose(fp);
+
+        // Remove the first line (total ...)
+        int start_line = 1;
+        int file_highlight = 0, start_index = 0;
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+        int visible_lines = max_y - 2;
+        int total_files = count - start_line;
+
+        while (1) {
+            clear();
+            attron(A_BOLD | COLOR_PAIR(3));
+            mvprintw(0, 0, "Select a File/Folder to Upload (Press 'q' to cancel): %s", current_dir);
+            attroff(A_BOLD | COLOR_PAIR(3));
+
+            for (int i = 0; i < visible_lines && (start_index + i) < total_files; i++) {
+                int idx = start_line + start_index + i;
+                char *line = lines[idx];
+                // Extract file/folder name (last token)
+                char *file_name = strrchr(line, ' ');
+                if (file_name) file_name++;
+                else file_name = line;
+                // Remove trailing newline
+                file_name[strcspn(file_name, "\n\r")] = '\0';
+
+                if ((start_index + i) == file_highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s%s", file_name, types[idx] == 1 ? "/" : "");
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                } else {
+                    attron(COLOR_PAIR(2));
+                    mvprintw(i + 1, 0, "  %s%s", file_name, types[idx] == 1 ? "/" : "");
+                    attroff(COLOR_PAIR(2));
+                }
+            }
+
+            // Add a footer at the bottom
+            attron(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 1, 0, "Use Arrow Keys to Scroll | Enter to select | 'q' to Cancel");
+            attroff(A_BOLD | COLOR_PAIR(2));
+
+            refresh();
+
+            int ch2 = getch();
+            if (ch2 == 'q') {
+                return;
+            } else if (ch2 == KEY_UP) {
+                if (file_highlight > 0) {
+                    file_highlight--;
+                    if (file_highlight < start_index) start_index--;
+                }
+            } else if (ch2 == KEY_DOWN) {
+                if (file_highlight < total_files - 1) {
+                    file_highlight++;
+                    if (file_highlight >= start_index + visible_lines) start_index++;
+                }
+            } else if (ch2 == '\n') {
+                int idx = start_line + file_highlight;
+                char *line = lines[idx];
+                char permissions[11] = {0};
+                sscanf(line, "%10s", permissions);
+
+                // Extract file/folder name (last token)
+                char *file_name = strrchr(line, ' ');
+                if (file_name) file_name++;
+                else file_name = line;
+                file_name[strcspn(file_name, "\n\r")] = '\0';
+
+                if (strcmp(file_name, ".") == 0) continue;
+                if (strcmp(file_name, "..") == 0) {
+                    char parent_dir[PATH_MAX];
+                    // If already at root, stay at root
+                    if (strcmp(current_dir, "/") == 0) {
+                        // Already at root, do nothing
+                    } else {
+                        // Compute parent directory
+                        realpath(current_dir, parent_dir);
+                        char *slash = strrchr(parent_dir, '/');
+                        if (slash && slash != parent_dir) {
+                            *slash = '\0';
+                        } else {
+                            // Go to root if no parent
+                            strcpy(parent_dir, "/");
+                        }
+                        strncpy(current_dir, parent_dir, sizeof(current_dir) - 1);
+                        current_dir[sizeof(current_dir) - 1] = '\0';
+                    }
+                    break;
+                }
+
+                if (permissions[0] == 'd') {
+                    // Enter directory
+                    char new_dir[PATH_MAX];
+                    if (strcmp(current_dir, ".") == 0)
+                        snprintf(new_dir, sizeof(new_dir), "%s", file_name);
+                    else
+                        snprintf(new_dir, sizeof(new_dir), "%s/%s", current_dir, file_name);
+                    strncpy(current_dir, new_dir, sizeof(current_dir) - 1);
+                    current_dir[sizeof(current_dir) - 1] = '\0';
+                    break;
+                } else if (permissions[0] == '-') {
+                    // Send upload request
+                    char full_path[PATH_MAX];
+                    if (strcmp(current_dir, ".") == 0)
+                        snprintf(full_path, sizeof(full_path), "%s", file_name);
+                    else
+                        snprintf(full_path, sizeof(full_path), "%s/%s", current_dir, file_name);
+
+                    char post_data[PATH_MAX + 512];
+                    snprintf(post_data, sizeof(post_data),
+                        "bot_id=%s&file_name=\"%s\"",
+                        selected_bot, full_path);
+
+                    CURL *upload_curl = curl_easy_init();
+                    if (!upload_curl) {
+                        attron(A_BOLD | COLOR_PAIR(4));
+                        print_wrapped(2, 0, "Failed to initialize CURL for upload.");
+                        attroff(A_BOLD | COLOR_PAIR(4));
+                        refresh();
+                        return;
+                    }
+                    memset(response, 0, sizeof(response));
+                    curl_easy_setopt(upload_curl, CURLOPT_URL, "http://127.0.0.1:8000/api/upload");
+                    curl_easy_setopt(upload_curl, CURLOPT_POST, 1L);
+                    curl_easy_setopt(upload_curl, CURLOPT_POSTFIELDS, post_data);
+                    curl_easy_setopt(upload_curl, CURLOPT_WRITEFUNCTION, write_callback);
+                    curl_easy_setopt(upload_curl, CURLOPT_WRITEDATA, response);
+
+                    CURLcode upload_res = curl_easy_perform(upload_curl);
+                    if (upload_res != CURLE_OK) {
+                        attron(A_BOLD | COLOR_PAIR(4));
+                        print_wrapped(2, 0, "Failed to send upload request: %s", curl_easy_strerror(upload_res));
+                        attroff(A_BOLD | COLOR_PAIR(4));
+                        refresh();
+                        curl_easy_cleanup(upload_curl);
+                        return;
+                    }
+                    curl_easy_cleanup(upload_curl);
+
+                    clear();
+
+                    // Add the header back
+                    attron(A_BOLD | COLOR_PAIR(3));
+                    mvprintw(0, 0, "Select a File (Press 'q' to cancel):");
+                    attroff(A_BOLD | COLOR_PAIR(3));
+
+                    attron(A_BOLD | COLOR_PAIR(3));
+                    print_wrapped(2, 0, "Success sending request: %s", full_path);
+                    attroff(A_BOLD | COLOR_PAIR(3));
+                    refresh();
+                    getch();
+                    return;
+                }
+            }
+        }
+    }
 }
 
 void send_command_to_bot() {

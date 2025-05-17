@@ -22,8 +22,11 @@
             <p>Next update in: <span id="timer">30</span> seconds</p>
             <button id="force-refresh">Refresh Now</button>
         </div>
+        <div id="send-file">
+            <button id="open-upload-modal">Send File</button>
+        </div>
         <div id="retrieve-file">
-            <button id="open-upload-modal">Get File</button>
+            <button id="open-download-modal">Get File</button>
         </div>
         <div id="send-command">
             <button id="open-command-modal">Send command</button>
@@ -39,11 +42,13 @@
     </div>
     <button id="load-more">Load More</button>
 
+    <div id="download-modal-section"></div> <!-- Dynamically filled with JS -->
     <div id="upload-modal-section"></div> <!-- Dynamically filled with JS -->
     <div id="command-modal-section"></div> <!-- Dynamically filled with JS -->
 
     <script src="/static/js/bot.js"></script>
     <script src="/static/js/load-command-modal.js"></script>
+    <script src="/static/js/load-download-modal.js"></script>
     <script src="/static/js/load-upload-modal.js"></script>
     <script src="/static/js/load-navbar.js"></script>
 </body>

@@ -131,7 +131,7 @@ async function fetchBotLogs(botId, prepend = false, isRefresh = false) {
                 const logs = data.lines.join('\n'); // Combine the lines into a single string
 
                 if (logs.length <= 0) {
-                    showNotification('No lines fetched. Bot may be offline.', 'error');
+                    showNotification('No lines fetched. Bot may be offline or empty file.', 'error');
                 }
 
                 if (prepend) {

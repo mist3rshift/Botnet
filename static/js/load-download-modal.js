@@ -1,24 +1,24 @@
-// Dynamically load the "Send File" modal
-async function loadUploadModal() {
-    const response = await fetch('/static/html/partial.upload-modal.html'); // Fetch the modal HTML snippet
+// Dynamically load the "Get File" modal
+async function loadDownloadModal() {
+    const response = await fetch('/static/html/partial.download-modal.html'); // Fetch the modal HTML snippet
     if (response.ok) {
         const modalHtml = await response.text();
-        document.getElementById('upload-modal-section').innerHTML = modalHtml; // Inject the modal into the DOM
+        document.getElementById('download-modal-section').innerHTML = modalHtml; // Inject the modal into the DOM
 
         // Initialize modal-related JavaScript after loading
-        initializeUploadModal();
+        initializeDownloadModal();
     } else {
-        showNotification('Failed to load upload modal', 'error');
+        showNotification('Failed to load download modal', 'error');
     }
 }
 
-// Initialize the upload modal
-function initializeUploadModal() {
-    const modal = document.getElementById('upload-modal');
-    const openModalButton = document.getElementById('open-upload-modal');
+// Initialize the download modal
+function initializeDownloadModal() {
+    const modal = document.getElementById('download-modal');
+    const openModalButton = document.getElementById('open-download-modal');
     const closeButton = modal.querySelector('.close-button');
-    const uploadForm = document.getElementById('upload-form');
-    const uploadFileNameInput = document.getElementById('upload-file-name-input');
+    const downloadForm = document.getElementById('download-form');
+    const downloadFileNameInput = document.getElementById('download-file-name-input');
 
     // Open the modal when the "Get File" button is clicked
     openModalButton.addEventListener('click', () => {
@@ -38,33 +38,34 @@ function initializeUploadModal() {
     });
 
     // Handle the form submission
-    uploadForm.addEventListener('submit', async (event) => {
+    downloadForm.addEventListener('submit', async (event) => {
         event.preventDefault();
 
         const botId = document.getElementById('client-id').value; // Hidden input for bot ID
-        const uploadFileName = uploadFileNameInput.value.trim();
+        const downloadFileName = downloadFileNameInput.value.trim();
 
         if (!botId) {
             showNotification('Bot ID is missing.', 'error');
             return;
         }
-        if (!uploadFileName) {
+
+        if (!downloadFileName) {
             showNotification('Please enter a file name.', 'error');
             return;
         }
 
         try {
-            const response = await fetch('/api/upload', {
+            const response = await fetch('/api/download', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: `bot_id=${encodeURIComponent(botId)}&file_name=${encodeURIComponent(uploadFileName)}`,
+                body: `bot_id=${encodeURIComponent(botId)}&file_name=${encodeURIComponent(downloadFileName)}`,
             });
 
             if (response.ok) {
                 const result = await response.json();
-                showNotification(`Upload request successfully sent to client.`, 'success');
+                showNotification(`Download request successfully sent to client.`, 'success');
             } else {
                 const error = await response.json();
                 showNotification(`Error: ${error.error}`, 'error');
@@ -79,5 +80,5 @@ function initializeUploadModal() {
     });
 }
 
-// Call the function to load the upload modal
-loadUploadModal();
+// Call the function to load the download modal
+loadDownloadModal();

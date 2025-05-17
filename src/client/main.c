@@ -28,6 +28,7 @@ int set_socket_blocking(int socket_fd) {
 }
 
 int main(int argc, char *argv[]) {
+    init_launch_arguments_defaults();
     parse_arguments(argc, argv); // Parse launch arguments
 
     struct sockaddr_in serv_addr;

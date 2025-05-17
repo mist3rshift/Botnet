@@ -14,7 +14,7 @@ enum OrderType {
     ASKSTATE = 2,
     DDOSATCK = 3,
     FLOODING = 4,
-    UPLOAD = 5,
+    DOWNLOAD = 5,
     UNKNOWN = 99
 };
 
@@ -41,7 +41,7 @@ static inline void sleep_ms(unsigned milliseconds)
 Command *build_command(const char *cmd_id, int delay, const char *program, int expected_code, time_t timestamp, ...);
 void free_command(Command *cmd);
 int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size);
-
+static int is_number(const char *s);
 void serialize_command(const Command* cmd, char* buffer, size_t buffer_size);
 void deserialize_command(char *buffer, Command *cmd);
 #endif

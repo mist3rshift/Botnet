@@ -8,9 +8,17 @@
 #include "../include/server/server_constants.h"
 
 // Global variable to store the server address
-char server_address[INET_ADDRSTRLEN] = DEFAULT_SERVER_ADDR;
-char server_port[6] = DEFAULT_SERVER_PORT; // Default port is stored as a string
+char server_address[INET_ADDRSTRLEN];
+char server_port[6]; // Default port is stored as a string
 bool enable_cli = false; // Get global var enable_cli and set to true (default)
+
+void init_launch_arguments_defaults() {
+    strncpy(server_address, DEFAULT_SERVER_ADDR, INET_ADDRSTRLEN - 1);
+    server_address[INET_ADDRSTRLEN - 1] = '\0';
+    strncpy(server_port, DEFAULT_SERVER_PORT, 5);
+    server_port[5] = '\0';
+    enable_cli = false;
+}
 
 void print_help() {
     printf("Usage: program [OPTIONS]\n");

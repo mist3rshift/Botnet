@@ -115,14 +115,14 @@ int receive_message_server(
         return -1;
     }
 
-    // === GESTION DU UPLOAD ===
-    if (strncmp(buffer, "UPLOAD", 6) == 0) {
-        const char *filename = buffer + 6; // Extraire le nom du fichier après "UPLOAD "
+    // === GESTION DU DOWNLOAD ===
+    if (strncmp(buffer, "DOWNLOAD", 6) == 0) {
+        const char *filename = buffer + 8; // Extraire le nom du fichier après "DOWNLOAD "
 
-        output_log("UPLOAD request detected from client. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
+        output_log("DOWNLOAD request detected from client. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
 
-        int status = handle_upload(client_socket, filename);
-        write_to_client_log(client, "UPLOAD request handled");
+        int status = handle_download(client_socket, filename);
+        write_to_client_log(client, "DOWNLOAD request handled");
         return status;
     }
 
@@ -156,11 +156,11 @@ int receive_message_client(
 
     // === GESTION DU UPLOAD ===
     if (strncmp(buffer, "UPLOAD", 6) == 0) {
-        const char *filename = buffer + 6; // Extraire le nom du fichier après "UPLOAD "
+        const char *filename = buffer + 6; // Extraire le nom du fichier après "UPLOAD"
 
         output_log("UPLOAD request detected from server. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
 
-        int status = receive_file(sockfd,".", filename);
+        int status = receive_file(sockfd, filename);
 
         return status;
     }

