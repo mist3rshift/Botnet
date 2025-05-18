@@ -15,6 +15,7 @@ enum OrderType {
     DDOSATCK = 3,
     FLOODING = 4,
     DOWNLOAD = 5,
+    UPDATE = 6,
     UNKNOWN = 99
 };
 

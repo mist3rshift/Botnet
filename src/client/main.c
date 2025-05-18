@@ -31,32 +31,42 @@ int main(int argc, char *argv[]) {
     init_launch_arguments_defaults();
     parse_arguments(argc, argv); // Parse launch arguments
 
+    ensure_directory_exists("/tmp/downloads");
+
     struct sockaddr_in serv_addr;
-    int sockfd;
+    int sockfd = -1;
 
-    // Create client socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        client_setup_failed_exception("Error while creating client socket");
+    // Look for fd arugment - reuse same socket for client update
+    for (int i = 1; i < argc; ++i) {
+        if (strncmp(argv[i], "--fd=", 5) == 0) {
+            sockfd = atoi(argv[i] + 5);
+            break;
+        }
     }
 
-    set_socket_blocking(sockfd);
+    if (sockfd != -1) {
+        // Reuse the socket passed from previous process
+        set_socket_blocking(sockfd);
+        output_log("Self-update: Success!\n", LOG_INFO, LOG_TO_ALL);
+        output_log("Self-update: Reusing socket FD %d\n", LOG_INFO, LOG_TO_ALL, sockfd);
+    } else {
+        // Normal startup: create and connect socket
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0) {
+            client_setup_failed_exception("Error while creating client socket");
+        }
+        set_socket_blocking(sockfd);
 
-    // Fill the server socket structure
-    bzero((char *)&serv_addr, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons((uint16_t)atoi(server_port)); // Use global port
-    serv_addr.sin_addr.s_addr = inet_addr(server_address);  // Use global addr
+        bzero((char *)&serv_addr, sizeof(serv_addr));
+        serv_addr.sin_family = AF_INET;
+        serv_addr.sin_port = htons((uint16_t)atoi(server_port));
+        serv_addr.sin_addr.s_addr = inet_addr(server_address);
 
-    // Connect to the server
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        client_setup_failed_exception("Error while client trying to connect to the server");
+        if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+            client_setup_failed_exception("Error while client trying to connect to the server");
+        }
+        output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, server_port);
     }
-
-    output_log("Connected to server %s:%s\n", LOG_INFO, LOG_TO_ALL, server_address, server_port);
-
-    // Send an initial message to the server
-    //send_message(sockfd, "Hello!");
 
     // Main loop to monitor and process incoming data
     while (1) {
@@ -81,7 +91,7 @@ int main(int argc, char *argv[]) {
         if (FD_ISSET(sockfd, &read_fds)) {
             output_log("Receiving data, processing message\n", LOG_DEBUG, LOG_TO_CONSOLE);
             // Use receive_and_process_message to handle incoming data
-            receive_and_process_message(sockfd);
+            receive_and_process_message(sockfd, argc, argv);
         }
     }
 

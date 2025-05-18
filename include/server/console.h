@@ -13,5 +13,6 @@ void get_bot_file();
 void print_wrapped(int start_row, int start_col, const char *format, ...);
 bool handle_scrolling_and_quitting(int *start_line, int total_lines, int display_lines);
 void reconstruct_lines(cJSON *output);
+void update_bots();
 
 #endif

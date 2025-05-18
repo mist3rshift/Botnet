@@ -76,6 +76,9 @@ void parse_arguments(int argc, char *argv[]) {
         } else if (strcmp(argv[i], "--cli") == 0 || strcmp(argv[i], "-c") == 0) {
             // SERVER - Do not open console
             enable_cli = true;
+        } else if (strncmp(argv[i], "--fd=", 5) == 0) {
+            // Ignore --fd argument, used for
+            continue;
         } else {
             fprintf(stderr, "Unknown argument: %s\n", argv[i]);
             exit(EXIT_FAILURE);

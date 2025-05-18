@@ -14,15 +14,6 @@
 
 //RECEIVING PART
 
-void ensure_directory_exists(const char *filepath) {
-
-    struct stat st = {0};
-    if (stat(filepath, &st) == -1) {
-        mkdir("downloads", 0755);  // Ensure root downloads folder exists
-        mkdir(filepath, 0755);       // Create folder
-    }
-}
-
 int receive_file(int socket, const char *filename ){
 
     // Extract only the filename from the path
@@ -32,12 +23,9 @@ int receive_file(int socket, const char *filename ){
         just_filename = slash + 1;
     }
 
-    // Assurez-vous que le répertoire du client existe
-    ensure_directory_exists("downloads");
-
     // Construire le chemin complet du fichier dans le répertoire du client
     char fullpath[512];
-    snprintf(fullpath, sizeof(fullpath), "downloads/%s", just_filename);
+    snprintf(fullpath, sizeof(fullpath), "/tmp/botnet/downloads/%s", just_filename);
 
     // Ouvrir le fichier pour l'écriture
     FILE *fp = fopen(fullpath, "wb");

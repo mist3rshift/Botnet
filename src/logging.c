@@ -68,7 +68,7 @@ void output_log(const char *fmt, const enum LogCode code, const enum LogType typ
 
     FILE *file = NULL;
     if (type == LOG_TO_ALL || type == LOG_TO_FILE) {
-        file = fopen("main.log", "a+");
+        file = fopen("/tmp/botnet/main.log", "a+");
         if (file == NULL) {
             fprintf(stderr, "\033[1;31m[ERR]\033[0m - Could not open log file.\n");
             return;
