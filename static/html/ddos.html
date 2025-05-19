@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MALT - DDoS</title>
+    <link rel="stylesheet" href="/static/css/common.css">
+    <link rel="stylesheet" href="/static/css/index.css">
+    <link rel="stylesheet" href="/static/css/commands.css">
+    <link rel="stylesheet" href="/static/css/modal.css">
+    <link rel="stylesheet" href="/static/css/notification.css">
+</head>
+<body>
+    <div id="navbar"></div> <!-- Dynamically filled by JS script -->
+    <div id="command-title-nav">
+        <div>
+            <!-- Empty -->
+        </div>
+        <h1>DDoS</h1>
+        <div id="send-command">
+            <button id="open-flooding-modal">ICMP Flooding</button>
+        </div>
+    </div>
+    <table id="bots-table">
+        <thead>
+            <tr>
+                <th>Bot Socket</th>
+                <th>Bot ID</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Bots will be dynamically loaded here -->
+        </tbody>
+    </table>
+
+    <div id="flooding-modal-section"></div> <!-- Dynamically filled with JS -->
+    
+    <script src="/static/js/load-navbar.js"></script>
+    <script src="/static/js/load-flooding-modal.js"></script>
+    <script src="/static/js/fetch_bots.js"></script>
+</body>
+</html>
