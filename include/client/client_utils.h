@@ -1,7 +1,7 @@
 #ifndef CLIENT_UTILS_H
 #define CLIENT_UTILS_H 
 #define FILE_CHUNK_SIZE 4096
-
+#define STRLEN 16
 
 #include "../commands.h"
 

