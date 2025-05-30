@@ -89,7 +89,7 @@ static void test_commands_sysinfo(void **state){
     assert_int_equal(cmd->expected_exit_code, 0);
     assert_int_equal(cmd->timestamp, time_now);
     assert_string_equal(cmd->params[0], "-L" );
-    assert_string_equal(cmd->params[1], NULL);
+    assert_null(cmd->params[1]);
     free_commands(cmds);
 }
 
