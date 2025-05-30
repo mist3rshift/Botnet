@@ -90,7 +90,7 @@ static void test_commands_sysinfo(void **state){
     assert_int_equal(cmd->timestamp, time_now);
     assert_string_equal(cmd->params[0], "-L" );
     assert_string_equal(cmd->params[1], NULL);
-    free_commands(cmds, 7);
+    free_commands(cmds);
 }
 
 int main() {
