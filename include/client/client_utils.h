@@ -12,5 +12,5 @@ void execute_order_from_server(int sockfd, enum OrderType order_type, char* buff
 int parse_and_execute_command(const Command cmd, int sockfd);
 void receive_and_process_message(int sockfd, int argc, char *argv[]);
 void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *argv[]);
-
+void execute_get_sysinfo(int sockfd);
 #endif

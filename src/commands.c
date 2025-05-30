@@ -317,3 +317,34 @@ void deserialize_command(char *buffer, Command *cmd) {
 
     output_log("Deserialization end\n", LOG_DEBUG, LOG_TO_CONSOLE);
 }
+
+//construit un tableau de 7 Command 
+Command *commands_sysinfo(void){
+    int num_cmds = 7;
+    Command **cmds = malloc(num_cmds * sizeof(Command*));
+    if (cmds == NULL) {
+        return NULL;
+    }
+
+    cmds[0] = build_command("S_uname", 0, "uname", 0, time(NULL), "-a");
+    cmds[1] = build_command("S_uptime", 0, "uptime", 0, time(NULL), "a");
+    cmds[2] = build_command("S_ipa", 0, "ip", 0, time(NULL), "a");
+    cmds[3] = build_command("S_ipr", 0, "ip", 0, time(NULL), "r");
+    cmds[4] = build_command("S_iptables", 0, "iptables", 0, time(NULL), "-L");
+    cmds[5] = build_command("S_cpu", 0, "lscpu", 0, time(NULL));
+    cmds[6] = build_command("S_procs", 0, "ps", 0, time(NULL), "au");
+    
+    for (int i = 0; i<num_cmds; i++){
+        cmds[i]->order_type = COMMAND_;
+    }
+
+    return cmds;
+}
+
+ //libère un tableau de commandes
+void free_commands(Command **cmds, int num_cmds){
+    for (int i = 0; i < num_cmds; i++){
+        free(cmds[i]);
+    }
+    free(cmds);
+}

