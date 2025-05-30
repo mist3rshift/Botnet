@@ -15,5 +15,6 @@ bool handle_scrolling_and_quitting(int *start_line, int total_lines, int display
 void reconstruct_lines(cJSON *output);
 void update_bots();
 void icmp_flood();
+void sysinfo_bots();
 
 #endif
