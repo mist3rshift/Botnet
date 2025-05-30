@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const sysinfoBtn = document.getElementById('sysinfo-btn');
+    const sysinfoBtn = document.getElementById('sysinfo-button');
 
     if (!sysinfoBtn) {
         console.error('Button not found.');
