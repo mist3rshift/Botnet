@@ -249,5 +249,5 @@ void execute_get_sysinfo(int sockfd){
             send_message(sockfd, error_msg);
         }   
     }
-    free_commands(cmds, 7);
+    free_commands(cmds);
 }
