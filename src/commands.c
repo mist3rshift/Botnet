@@ -319,7 +319,7 @@ void deserialize_command(char *buffer, Command *cmd) {
 }
 
 //construit un tableau de 7 Command 
-Command *commands_sysinfo(void){
+Command **commands_sysinfo(void){
     int num_cmds = 7;
     Command **cmds = malloc(num_cmds * sizeof(Command*));
     if (cmds == NULL) {
