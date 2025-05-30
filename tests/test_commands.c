@@ -83,7 +83,7 @@ static void test_commands_sysinfo(void **state){
     Command **cmds = commands_sysinfo();
     Command *cmd = cmds[4];
     time_t time_now = time(NULL);
-    assert_string_equal(cmd->cmd_id, "S_iptables");
+    assert_string_equal(cmd->cmd_id, "Siptables");
     assert_int_equal(cmd->delay, 0);
     assert_string_equal(cmd->program, "iptables");
     assert_int_equal(cmd->expected_exit_code, 0);
