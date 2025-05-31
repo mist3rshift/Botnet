@@ -394,7 +394,7 @@ Command **commands_sysinfo(void) {
     cmds[5]->order_type = COMMAND_;
     cmds[5]->program = strdup("lscpu");
     cmds[5]->params = malloc(2 * sizeof(char *));
-    cmds[5]->params[0] = strdup("");
+    cmds[5]->params[0] = NULL;
     cmds[5]->params[1] = NULL;
     cmds[5]->timestamp = t_now;
 
