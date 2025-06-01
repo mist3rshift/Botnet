@@ -222,6 +222,7 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
     // Parse fields from the POST request
     mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
     mg_http_get_var(&hm->body, "file_path", file_path, sizeof(file_path));
+    mg_http_get_var(&hm->body, "key", key, sizeof(key));
 
     // Validate required fields
     if (strlen(bot_id) == 0) {
