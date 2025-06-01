@@ -116,7 +116,7 @@ int receive_message_server(
     }
 
     // === GESTION DU DOWNLOAD ===
-    if (strncmp(buffer, "DOWNLOAD", 6) == 0) {
+    if (strncmp(buffer, "UPLOAD", 6) == 0) {
         const char *filename = buffer + 8; // Extraire le nom du fichier après "DOWNLOAD "
 
         output_log("DOWNLOAD request detected from client. Filename: %s\n", LOG_INFO, LOG_TO_ALL, filename);
