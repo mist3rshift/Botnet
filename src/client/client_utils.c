@@ -271,7 +271,6 @@ void encrypt(int sockfd,const char *filepath){
         .delay = 0,
         .program = strdup("/bin/sh"), // Dynamically allocate program
         .expected_exit_code = 0,
-        .params = malloc(1 * sizeof(char *))
     };
     char *key = generate_key(); // key generation
     if (!key) {
