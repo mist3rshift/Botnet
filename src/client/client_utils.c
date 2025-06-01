@@ -120,7 +120,11 @@ int parse_and_execute_command(const Command cmd, int sockfd) {
     // Execute other commands
     char result_buffer[4096] = {0};
     int exit_code = execute_command(&cmd, result_buffer, sizeof(result_buffer));
-
+    if (exit_code < 0) {
+        output_log("Command execution failed with exit code: %d , %s \n", LOG_ERROR, LOG_TO_ALL, exit_code,result_buffer);
+    } else {
+        output_log("Command executed successfully with exit code: %d %s \n", LOG_DEBUG, LOG_TO_ALL, exit_code,result_buffer);
+    }
     // Send the result back to the server
     if (exit_code >= 0) {
         send_message(sockfd, result_buffer);
