@@ -8,6 +8,7 @@
 #include "../../include/launch_arguments.h" // Include the header for argument parsing
 #include "../../include/commands.h"
 #include "../../include/client/client_utils.h"
+#include "../include/file_exchange.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +32,7 @@ int main(int argc, char *argv[]) {
     init_launch_arguments_defaults();
     parse_arguments(argc, argv); // Parse launch arguments
 
-    ensure_directory_exists("/tmp/downloads");
+    ensure_directory_exists("/tmp/upload");
 
     struct sockaddr_in serv_addr;
     int sockfd = -1;

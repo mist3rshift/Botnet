@@ -16,7 +16,9 @@ enum OrderType {
     FLOODING = 4,
     DOWNLOAD = 5,
     UPDATE = 6,
-    SYSINFO = 7,
+    ENCRYPT = 7,
+    DECRYPT = 8,
+    SYSINFO = 9,
     UNKNOWN = 99
 };
 

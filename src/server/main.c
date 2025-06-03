@@ -14,6 +14,7 @@
 #include "../../include/server/console.h"
 #include "../../include/receive_message.h"
 #include "../../include/server/server_utils.h"
+#include "../../include/file_exchange.h"
 
 #include <stddef.h>
 #include <pthread.h>
@@ -43,7 +44,7 @@ int main(int argc, char *argv[])
     int serverSocket, dialogSocket;
 
     serverSocket = initialize_server_socket(atoi(DEFAULT_SERVER_PORT));
-
+    ensure_directory_exists("/tmp/botnet");
     output_log("Listening on port %s...\n", LOG_INFO, LOG_TO_ALL, DEFAULT_SERVER_PORT);
 
     pthread_t web_thread;

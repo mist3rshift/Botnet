@@ -14,7 +14,7 @@
 
 //RECEIVING PART
 
-int receive_file(int socket, const char *filename ){
+int receive_file(int socket, const char *filename,const char *filepath ){
 
     // Extract only the filename from the path
     const char *just_filename = filename;
@@ -22,10 +22,10 @@ int receive_file(int socket, const char *filename ){
     if (slash) {
         just_filename = slash + 1;
     }
-
+    ensure_directory_exists(filepath);
     // Construire le chemin complet du fichier dans le répertoire du client
     char fullpath[512];
-    snprintf(fullpath, sizeof(fullpath), "/tmp/botnet/downloads/%s", just_filename);
+    snprintf(fullpath, sizeof(fullpath), "%s/%s",filepath, just_filename);
 
     // Ouvrir le fichier pour l'écriture
     FILE *fp = fopen(fullpath, "wb");
@@ -55,7 +55,7 @@ int receive_file(int socket, const char *filename ){
         if (bytes_received <= 0) break;
         fwrite(buffer, 1, bytes_received, fp);
         total_received += bytes_received;
-        output_log("handle_download : Received EOF signal from client socket %d\n", LOG_DEBUG, LOG_TO_ALL, socket);
+        output_log("receive_file : Received EOF signal from client socket %d\n", LOG_DEBUG, LOG_TO_ALL, socket);
 
     }
 
@@ -122,7 +122,7 @@ bool send_file(int socket, const char *filename) {
 
     // Envoie du nom de fichier (still use original name for protocol)
     char header[1024];
-    snprintf(header, sizeof(header), "UPLOAD%s", stripped_filename);
+    snprintf(header, sizeof(header), "TRANSFERT%s", stripped_filename);
     if (send(socket, header, strlen(header), 0) < 0) {
         output_log("send_file : Error sending file data header", LOG_ERROR, LOG_TO_ALL, stripped_filename);
         fclose(fp);
@@ -155,4 +155,13 @@ bool send_file(int socket, const char *filename) {
 
     output_log("File '%s' sent successfully\n", LOG_INFO, LOG_TO_ALL, stripped_filename);
     return true;
+}
+void ensure_directory_exists(const char *filepath) {
+    struct stat st = {0};
+    if (stat(filepath, &st) == -1) {
+        mkdir("/tmp", 0755);  // Ensure tmp exists
+        mkdir("/tmp/botnet", 0755);  // Ensure botnet folder exists
+        mkdir("/tmp/botnet/download", 0755);  // Ensure downloads folder exists
+        mkdir(filepath, 0755);       // Create folder
+    }
 }
