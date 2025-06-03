@@ -189,16 +189,7 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
     return ;
 }
 
-void ensure_directory_exists(const char *filepath) {
 
-    struct stat st = {0};
-    if (stat(filepath, &st) == -1) {
-        mkdir("/tmp", 0755);  // Ensure tmp exists
-        mkdir("/tmp/botnet", 0755);  // Ensure botnet folder exists
-        mkdir("/tmp/botnet/downloads", 0755);  // Ensure downloads folder exists
-        mkdir(filepath, 0755);       // Create folder
-    }
-}
 
 void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *argv[]) {
     char exe_path[PATH_MAX];
