@@ -317,3 +317,110 @@ void deserialize_command(char *buffer, Command *cmd) {
 
     output_log("Deserialization end\n", LOG_DEBUG, LOG_TO_CONSOLE);
 }
+
+//construit un tableau de 7 Command 
+Command **commands_sysinfo(void) {
+    int num_cmds = 7;
+    Command **cmds = malloc(num_cmds * sizeof(Command *));
+    if (cmds == NULL) {
+        return NULL;
+    }
+
+    time_t t_now = time(NULL);
+
+    for (int i = 0; i < num_cmds; i++) {
+        cmds[i] = malloc(sizeof(Command));
+    }
+
+    strncpy(cmds[0]->cmd_id, "Suname", sizeof(cmds[0]->cmd_id) - 1);
+    cmds[0]->cmd_id[sizeof(cmds[0]->cmd_id) - 1] = '\0'; // Assurez-vous que la chaîne est terminée par NULL
+    cmds[0]->delay = 0;
+    cmds[0]->expected_exit_code = 0;
+    cmds[0]->order_type = COMMAND_;
+    cmds[0]->program = strdup("uname");
+    cmds[0]->params = malloc(2 * sizeof(char *));
+    cmds[0]->params[0] = strdup("-a");
+    cmds[0]->params[1] = NULL;
+    cmds[0]->timestamp = t_now;
+
+    strncpy(cmds[1]->cmd_id, "Suptime", sizeof(cmds[1]->cmd_id) - 1);
+    cmds[1]->cmd_id[sizeof(cmds[1]->cmd_id) - 1] = '\0';
+    cmds[1]->delay = 0;
+    cmds[1]->expected_exit_code = 0;
+    cmds[1]->order_type = COMMAND_;
+    cmds[1]->program = strdup("uptime");
+    cmds[1]->params = malloc(2 * sizeof(char *));
+    cmds[1]->params[0] = strdup("a");
+    cmds[1]->params[1] = NULL;
+    cmds[1]->timestamp = t_now;
+
+    strncpy(cmds[2]->cmd_id, "Sipa", sizeof(cmds[2]->cmd_id) - 1);
+    cmds[2]->cmd_id[sizeof(cmds[2]->cmd_id) - 1] = '\0';
+    cmds[2]->delay = 0;
+    cmds[2]->expected_exit_code = 0;
+    cmds[2]->order_type = COMMAND_;
+    cmds[2]->program = strdup("ip");
+    cmds[2]->params = malloc(2 * sizeof(char *));
+    cmds[2]->params[0] = strdup("a");
+    cmds[2]->params[1] = NULL;
+    cmds[2]->timestamp = t_now;
+
+    strncpy(cmds[3]->cmd_id, "Sipr", sizeof(cmds[3]->cmd_id) - 1);
+    cmds[3]->cmd_id[sizeof(cmds[3]->cmd_id) - 1] = '\0';
+    cmds[3]->delay = 0;
+    cmds[3]->expected_exit_code = 0;
+    cmds[3]->order_type = COMMAND_;
+    cmds[3]->program = strdup("ip");
+    cmds[3]->params = malloc(2 * sizeof(char *));
+    cmds[3]->params[0] = strdup("r");
+    cmds[3]->params[1] = NULL;
+    cmds[3]->timestamp = t_now;
+
+    strncpy(cmds[4]->cmd_id, "Siptables", sizeof(cmds[4]->cmd_id) - 1);
+    cmds[4]->cmd_id[sizeof(cmds[4]->cmd_id) - 1] = '\0';
+    cmds[4]->delay = 0;
+    cmds[4]->expected_exit_code = 0;
+    cmds[4]->order_type = COMMAND_;
+    cmds[4]->program = strdup("iptables");
+    cmds[4]->params = malloc(2 * sizeof(char *));
+    cmds[4]->params[0] = strdup("-L");
+    cmds[4]->params[1] = NULL;
+    cmds[4]->timestamp = t_now;
+
+    strncpy(cmds[5]->cmd_id, "Scpu", sizeof(cmds[5]->cmd_id) - 1);
+    cmds[5]->cmd_id[sizeof(cmds[5]->cmd_id) - 1] = '\0';
+    cmds[5]->delay = 0;
+    cmds[5]->expected_exit_code = 0;
+    cmds[5]->order_type = COMMAND_;
+    cmds[5]->program = strdup("lscpu");
+    cmds[5]->params = malloc(2 * sizeof(char *));
+    cmds[5]->params[0] = NULL;
+    cmds[5]->params[1] = NULL;
+    cmds[5]->timestamp = t_now;
+
+    strncpy(cmds[6]->cmd_id, "Sprocs", sizeof(cmds[6]->cmd_id) - 1);
+    cmds[6]->cmd_id[sizeof(cmds[6]->cmd_id) - 1] = '\0';
+    cmds[6]->delay = 0;
+    cmds[6]->expected_exit_code = 0;
+    cmds[6]->order_type = COMMAND_;
+    cmds[6]->program = strdup("ps");
+    cmds[6]->params = malloc(2 * sizeof(char *));
+    cmds[6]->params[0] = strdup("au");
+    cmds[6]->params[1] = NULL;
+    cmds[6]->timestamp = t_now;
+
+    return cmds;
+}
+
+
+void free_commands(Command **cmds) {
+    for (int i = 0; i < 7; i++) {
+        free(cmds[i]->program);
+        for (int j = 0; cmds[i]->params[j] != NULL; j++) {
+            free(cmds[i]->params[j]);
+        }
+        free(cmds[i]->params);
+        free(cmds[i]);
+    }
+    free(cmds);
+}

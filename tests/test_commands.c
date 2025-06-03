@@ -79,12 +79,27 @@ static void test_execute_command(void **state) {
     assert_int_equal(execute_command(cmd, result_buffer, sizeof(result_buffer)), 0);
 }
 
+static void test_commands_sysinfo(void **state){
+    Command **cmds = commands_sysinfo();
+    Command *cmd = cmds[4];
+    time_t time_now = time(NULL);
+    assert_string_equal(cmd->cmd_id, "Siptables");
+    assert_int_equal(cmd->delay, 0);
+    assert_string_equal(cmd->program, "iptables");
+    assert_int_equal(cmd->expected_exit_code, 0);
+    assert_int_equal(cmd->timestamp, time_now);
+    assert_string_equal(cmd->params[0], "-L" );
+    assert_null(cmd->params[1]);
+    free_commands(cmds);
+}
+
 int main() {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_build_command),
         cmocka_unit_test(test_execute_command),
         cmocka_unit_test(test_serialize),
         cmocka_unit_test(test_deserialize),
+        cmocka_unit_test(test_commands_sysinfo)
     };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

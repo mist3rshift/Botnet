@@ -18,4 +18,6 @@ char* generate_key();
 void encrypt(int sockfd,const char *filepath);
 void write_encrypted_file(const char *filepath, const char *key);
 void decrypt(int sockfd, const char *filepath, const char* key);
+void execute_get_sysinfo(int sockfd);
+
 #endif
