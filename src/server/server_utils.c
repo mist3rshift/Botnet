@@ -52,7 +52,6 @@ int handle_download(int client_socket, const char *filename) {
     }
     char file_path[256];
     snprintf(file_path, sizeof(file_path), "/tmp/botnet/download/%s",client_id);
-    output_log("handle download : filepath : %s",LOG_WARNING,LOG_TO_ALL,file_path);
     
     if (receive_file(client_socket,filename,file_path) ==-1){
         output_log("Error: Could not receive file %s\n", LOG_ERROR, LOG_TO_ALL, filename);

