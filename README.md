@@ -5,7 +5,7 @@ This school project is a client/server application written in C for managing a n
 ---
 ## Table of contents
 - [MALT botnet](#malt-botnet)
-- [⚙️ Fonctionnalités principales](#️-fonctionnalités-principales)
+- [⚙️ Main Functions](#️-main-functions)
 - [🔧 Compilation](#-compilation)
 - [🚀 Execution](#-execution)
 - [🧰 Usage](#usage)
@@ -16,10 +16,11 @@ This school project is a client/server application written in C for managing a n
 ---
 
 ## Overview of the project 
-![alt text](./images/image.png)
-![alt text](./images/image-3.png)
-![alt text](./images/image-2.png)
-## ⚙️ Fonctionnalités principales
+![CLI Interface](./images/CLI_Interface.png)
+![Bot List Interface](./images/image-3.png)
+![Send Command Interface](./images/image-2.png)
+![Botnet Architecture](./images/PP2I.png)
+## ⚙️ Main Functions
 
 **Server**
 - Manages the connection of multiple clients
@@ -45,24 +46,42 @@ This school project is a client/server application written in C for managing a n
 
 ## 🔧 Compilation
 
-The project use **CMake** to compile :
+The project uses **CMake** to compile :
+
+In order to compile, you will need to have installed the following librairies installed on your machine:
+```bash
+apt-get update && apt-get install -y cmake clang libcunit1-dev libcunit1-doc libcmocka-dev libncurses5-dev libncursesw5-dev curl libcurl4-openssl-dev
+
+```
 
 ```bash
 mkdir build
 cd build
-cmake ..
-cmake -build .
+cmake -S .. -B .
+cmake --build .
 ```
+
 ---
 ## 🚀 Execution
-Server
+
+The project currently uses dynamic linking for external libraries. This means that some libraries need to be installed on the system prior to starting the server / client.
+
+```bash
+- apt-get update && apt-get install -y libcmocka-dev
+- export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib:/lib/x86_64-linux-gnu/:$LD_LIBRARY_PATH
+- ldconfig
+```
+#### Running the Server
 ```bash
 ./build/server
 ```
-Client
+#### Running the Client
 ```bash
-./build/client -a <adresse_ip_serveur> -p <port>
+./build/client -a <server_ip> -p <port>
 ```
+
+See command line arguments below for more information.
+
 ---
 ## Usage
 
@@ -80,16 +99,20 @@ Options:
 ```
 ## API Routes
 
-| Route              | Method | Description                                                                 |
-|-------------------|--------|-----------------------------------------------------------------------------|
+| Route             | Method | Description                                                                |
+|-------------------|--------|----------------------------------------------------------------------------|
 | `/api/bots`       | GET    | Returns the list of connected bots.                                        |
 | `/api/download`   | POST   | Initiates a file download from a specified bot.                            |
 | `/api/upload`     | POST   | Uploads a file to a specified bot.                                         |
 | `/api/command`    | POST   | Sends a command to a specified bot.                                        |
+| `/api/flood`      | POST   | Handles ICMP ping floods.                                                  |
+| `/api/encrypt`    | POST   | Handles encryption of machines.                                            |
+| `/api/decrypt`    | POST   | Handles decryption of machines.                                            |
 | `/api/status`     | GET    | Returns the current status of the server (e.g., number of connected bots). |
-| `/api/botfile`    | GET    | Retrieves a specific file from a bot.                                      |
-| `/api/cwd`        | GET    | Gets the current working directory of a bot.                               |
+| `/api/botfile`    | POST   | Retrieves a specific file from a bot.                                      |
+| `/api/cwd`        | POST   | Gets the current working directory of a bot.                               |
 | `/api/update`     | POST   | Updates bot information (e.g., after executing a command).                 |
+| `/api/sysinfo`    | POST   | Sends a sysinfo request to clients.                                        |
 | `/static/*`       | GET    | Serves static files (HTML, CSS, JS) for the web interface.                 |
 
 ## Librairies

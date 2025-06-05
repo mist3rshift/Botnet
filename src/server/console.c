@@ -1488,7 +1488,7 @@ void get_bot_file() {
         return;
     }
 
-    char response[4096] = {0}; // Buffer to store the HTTP response
+    char response[8192] = {0}; // Buffer to store the HTTP response
 
     // Fetch connected bots
     curl_easy_setopt(curl, CURLOPT_URL, "http://127.0.0.1:8000/api/bots");
